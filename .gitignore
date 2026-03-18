@@ -1,0 +1,12 @@
+data/
+outputs/
+tutorial/*.tif
+tutorial/*.tiff
+tutorial/*.npy
+*.tif
+*.tiff
+*.ome
+*.npy
+*.csv
+__pycache__/
+.ipynb_checkpoints/
