@@ -3,207 +3,98 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import tifffile as tiff
+from cellpose import models
+from skimage.measure import regionprops_table
 
-from skimage.filters import gaussian, threshold_otsu
-from skimage.morphology import (
-    remove_small_objects,
-    remove_small_holes,
-    disk,
-    opening,
-)
-from skimage.measure import label, regionprops_table
-from skimage.exposure import rescale_intensity
-from skimage.restoration import rolling_ball
+import torch
 
-
-# =========================================================
-# BASE DIRECTORY (JUPYTER SAFE)
-# =========================================================
 BASE_DIR = Path.cwd()
-
-# =========================================================
-# PATHS
-# =========================================================
-CONDENSATE_RAW_PATH = BASE_DIR / "data" / "raw_mask_condensates" / "C2-raw_stack_sample2_5.ome.tif"
-CONDENSATE_MASK_PATH = BASE_DIR / "data" / "raw_mask_condensates" / "C2-raw_stack_sample2_5.ome_cp_masks.tif"
-
-NUCLEI_RAW_PATH = BASE_DIR / "data" / "raw_mask_nuclei" / "C1-raw_stack_sample2_5.tif"
-NUCLEI_MASK_PATH = BASE_DIR / "data" / "raw_mask_nuclei" / "C1-raw_stack_sample2_5.ome_cp_masks.tif"
-
-OUTPUT_DIR = BASE_DIR / "outputs" / "python_native_segmentation"
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "outputs" / "cellpose_python"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Versioned directories
-COND_BASE = OUTPUT_DIR / "condensates"
-V1_DIR = COND_BASE / "v1"
-V2_DIR = COND_BASE / "v2"
+COND_PATH = DATA_DIR / "raw_mask_condensates" / "C2-raw_stack_sample2_5.tif"
+NUC_PATH  = DATA_DIR / "raw_mask_nuclei" / "C1-raw_stack_sample2_5.tif"
 
-V1_DIR.mkdir(parents=True, exist_ok=True)
-V2_DIR.mkdir(parents=True, exist_ok=True)
+print("Condensate file exists: ", COND_PATH.exists())
+print("Nuclei file exists: ", NUC_PATH.exists())
 
+cond_stack = tiff.imread(COND_PATH)
+nuc_stack = tiff.imread(NUC_PATH)
 
-# =========================================================
-# PARAMETERS (TUNE THESE)
-# =========================================================
-# --- Condensates ---
-COND_GAUSSIAN_SIGMA = 1.0
-COND_ROLLING_BALL_RADIUS = 30
-COND_MIN_OBJECT_SIZE = 8
-COND_MIN_HOLE_SIZE = 8
+print("Condensates shape:", cond_stack.shape)
+print("Nuclei shape:", nuc_stack.shape)
+print("Condensates dtype:", cond_stack.dtype)
+print("Nuclei dtype:", nuc_stack.dtype)
 
-# --- Nuclei ---
-NUC_GAUSSIAN_SIGMA = 2.0
-NUC_ROLLING_BALL_RADIUS = 50
-NUC_MIN_OBJECT_SIZE = 200
-NUC_MIN_HOLE_SIZE = 200
+cond_model = models.CellposeModel(gpu=True)
+nuc_model  = models.CellposeModel(gpu=True)
 
+from cellpose import core
+print("GPU working:", core.use_gpu())
 
-# =========================================================
-# LOAD DATA
-# =========================================================
-print("Loading data...")
+def run_cellpose_stack(stack, model, object_name="objects", diameter=None):
+    mask_stack = []
+    measurements = []
 
-condensate_raw = tiff.imread(CONDENSATE_RAW_PATH)
-condensate_mask = tiff.imread(CONDENSATE_MASK_PATH)
+    for z in range(stack.shape[0]):
+        img = stack[z]
 
-nuclei_raw = tiff.imread(NUCLEI_RAW_PATH)
-nuclei_mask = tiff.imread(NUCLEI_MASK_PATH)
+        masks, flows, styles= model.eval(
+            img,
+            diameter=diameter,
+            channels=[0, 0]
+        )
 
-print("Condensate shape:", condensate_raw.shape)
-print("Nuclei shape:", nuclei_raw.shape)
+        mask_stack.append(masks.astype(np.int32))
 
+        props = regionprops_table(
+            masks,
+            intensity_image=img,
+            properties=["label", "area", "centroid", "mean_intensity"]
+        )
 
-# =========================================================
-# SEGMENTATION FUNCTIONS
-# =========================================================
-def segment_condensates(img):
-    img = img.astype(np.float32)
+        df = pd.DataFrame(props)
+        df["z"] = z
+        measurements.append(df)
 
-    background = rolling_ball(img, radius=COND_ROLLING_BALL_RADIUS)
-    corrected = img - background
-    corrected[corrected < 0] = 0
+        print(f"{object_name} slice {z}: {masks.max()} objects")
 
-    smoothed = gaussian(corrected, sigma=COND_GAUSSIAN_SIGMA)
-    smoothed = rescale_intensity(smoothed, in_range="image", out_range=(0, 1))
+    mask_stack = np.stack(mask_stack)
+    measurements_df = pd.concat(measurements, ignore_index=True)
 
-    thresh = threshold_otsu(smoothed)
-    binary = smoothed > thresh
+    return mask_stack, measurements_df
 
-    binary = remove_small_objects(binary, min_size=COND_MIN_OBJECT_SIZE)
-    binary = remove_small_holes(binary, area_threshold=COND_MIN_HOLE_SIZE)
-    binary = opening(binary, footprint=disk(1))
-    binary = remove_small_objects(binary, min_size=COND_MIN_OBJECT_SIZE)
+cond_masks, cond_df = run_cellpose_stack(
+    cond_stack,
+    cond_model,
+    object_name="condensates",
+    diameter=None
+)
 
-    labels = label(binary)
+nuc_masks, nuc_df = run_cellpose_stack(
+    nuc_stack,
+    nuc_model,
+    object_name="nuclei",
+    diameter=None
+)
 
-    return labels, binary
+print("Condensate mask stack shape:", cond_masks.shape)
+print("Nuclei mask stack shape:", nuc_masks.shape)
 
+display(cond_df.head())
+display(nuc_df.head())
 
-def segment_nuclei(img):
-    img = img.astype(np.float32)
+print("Condensate mask stack shape:", cond_masks.shape)
+print("Nuclei mask stack shape:", nuc_masks.shape)
 
-    background = rolling_ball(img, radius=NUC_ROLLING_BALL_RADIUS)
-    corrected = img - background
-    corrected[corrected < 0] = 0
+display(cond_df.head())
+display(nuc_df.head())
 
-    smoothed = gaussian(corrected, sigma=NUC_GAUSSIAN_SIGMA)
-    smoothed = rescale_intensity(smoothed, in_range="image", out_range=(0, 1))
+tiff.imwrite(OUTPUT_DIR / "condensate_masks.tif", cond_masks.astype(np.int32))
+tiff.imwrite(OUTPUT_DIR / "nuclei_masks.tif", nuc_masks.astype(np.int32))
 
-    thresh = threshold_otsu(smoothed)
-    binary = smoothed > thresh
+cond_df.to_csv(OUTPUT_DIR / "condensate_measurements.csv", index=False)
+nuc_df.to_csv(OUTPUT_DIR / "nuclei_measurements.csv", index=False)
 
-    binary = remove_small_objects(binary, min_size=NUC_MIN_OBJECT_SIZE)
-    binary = remove_small_holes(binary, area_threshold=NUC_MIN_HOLE_SIZE)
-    binary = opening(binary, footprint=disk(2))
-    binary = remove_small_objects(binary, min_size=NUC_MIN_OBJECT_SIZE)
-
-    labels = label(binary)
-
-    return labels, binary
-
-
-# =========================================================
-# RUN CONDENSATE SEGMENTATION
-# =========================================================
-print("\nRunning condensate segmentation...")
-
-cond_binary_stack = []
-cond_label_stack = []
-cond_measurements = []
-
-for z in range(condensate_raw.shape[0]):
-    img = condensate_raw[z]
-
-    labels, binary = segment_condensates(img)
-
-    cond_binary_stack.append(binary.astype(np.uint8))
-    cond_label_stack.append(labels.astype(np.int32))
-
-    props = regionprops_table(
-        labels,
-        intensity_image=img,
-        properties=["label", "area", "centroid", "mean_intensity"],
-    )
-
-    df = pd.DataFrame(props)
-    df["z"] = z
-    cond_measurements.append(df)
-
-    print(f"Condensate slice {z}: {labels.max()} objects")
-
-cond_binary_stack = np.stack(cond_binary_stack)
-cond_label_stack = np.stack(cond_label_stack)
-condensate_df = pd.concat(cond_measurements, ignore_index=True)
-
-
-# =========================================================
-# RUN NUCLEI SEGMENTATION
-# =========================================================
-print("\nRunning nuclei segmentation...")
-
-nuc_binary_stack = []
-nuc_label_stack = []
-
-for z in range(nuclei_raw.shape[0]):
-    img = nuclei_raw[z]
-
-    labels, binary = segment_nuclei(img)
-
-    nuc_binary_stack.append(binary.astype(np.uint8))
-    nuc_label_stack.append(labels.astype(np.int32))
-
-    print(f"Nuclei slice {z}: {labels.max()} objects")
-
-nuc_binary_stack = np.stack(nuc_binary_stack)
-nuc_label_stack = np.stack(nuc_label_stack)
-
-
-# =========================================================
-# SAVE FUNCTION
-# =========================================================
-def save_version(version_dir):
-    print(f"\nSaving to {version_dir}...")
-
-    tiff.imwrite(version_dir / "binary_masks.tif", cond_binary_stack)
-    tiff.imwrite(version_dir / "label_masks.tif", cond_label_stack)
-    condensate_df.to_csv(version_dir / "measurements.csv", index=False)
-
-
-# =========================================================
-# CHOOSE VERSION TO SAVE
-# =========================================================
-VERSION = "v1"  # change to "v2" after tuning
-
-if VERSION == "v1":
-    save_version(V1_DIR)
-elif VERSION == "v2":
-    save_version(V2_DIR)
-
-
-# =========================================================
-# SAVE NUCLEI (no versioning needed)
-# =========================================================
-tiff.imwrite(OUTPUT_DIR / "nuclei_binary_masks.tif", nuc_binary_stack)
-tiff.imwrite(OUTPUT_DIR / "nuclei_label_masks.tif", nuc_label_stack)
-
-print("\nDone.")
+print("Saved to:", OUTPUT_DIR)

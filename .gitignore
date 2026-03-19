@@ -1,12 +1,57 @@
+# =========================
+# Environments
+# =========================
+csbio-venv/
+venv/
+.env/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+
+# =========================
+# Data (raw + large files)
+# =========================
 data/
-outputs/
-tutorial/*.tif
-tutorial/*.tiff
-tutorial/*.npy
+tutorial/
+
+# Image formats
 *.tif
 *.tiff
 *.ome
+*.ome.tif
+
+# Numpy / arrays
 *.npy
+
+# =========================
+# Outputs
+# =========================
+outputs/
 *.csv
-__pycache__/
-.ipynb_checkpoints/
+
+# =========================
+# Cellpose / segmentation artifacts
+# =========================
+*_cp_masks.tif
+*_masks.tif
+
+# =========================
+# Misc
+# =========================
+*.log
+*.tmp
