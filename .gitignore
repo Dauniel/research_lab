@@ -26,7 +26,6 @@ __pycache__/
 # =========================
 # Data (raw + large files)
 # =========================
-data/
 tutorial/
 
 # Image formats
@@ -41,7 +40,13 @@ tutorial/
 # =========================
 # Outputs
 # =========================
-outputs/
+outputs/*
+
+# Allow specific output folder
+!outputs/cellpose_python/
+!outputs/cellpose_python/**
+
+# CSVs (still ignored globally EXCEPT above folder due to override)
 *.csv
 
 # =========================
