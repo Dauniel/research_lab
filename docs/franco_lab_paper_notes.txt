@@ -1,0 +1,247 @@
+
+Franco Lab Paper Notes
+======================
+"Programmable artificial RNA condensates in mammalian cells"
+Li, Kim, Wang, Payson, Tang, Villalba Nieto, Osmanovic, Yang, Dilao, Bermudez, Xiao, Li, Lin, Plath, Black, Franco
+bioRxiv, January 30, 2026
+DOI: https://doi.org/10.64898/2026.01.28.702393
+
+
+OVERVIEW
+--------
+The lab's flagship paper. Demonstrates that short single-stranded RNA strands can be
+engineered to form programmable condensates inside living mammalian cells, with tunable
+localization, composition, and material properties — all controlled by sequence design alone.
+
+
+THE RNA NANOSTAR MOTIF
+-----------------------
+- ssRNA nanostars: ~100-200 nt single strands that fold into multi-arm star shapes via stem-loops
+- Arms interact through kissing loops (palindromic loop-loop binding), driving phase separation
+- Expressed in cells using the TORNADO system (U6 promoter + autocatalytic circularization for stability)
+- Fluorescent reporters: Broccoli (green, DFHBI), Pepper (red, HBC620), Mango (yellow, TO1-B)
+- Cell lines: HEK293T (main), HeLa, U-2 OS
+
+
+DESIGN RULES FOR CONTROLLING CONDENSATES
+------------------------------------------
+Three parameters tune condensate localization, size, and number:
+
+1. ARM LENGTH (controls nuclear export rate)
+   - 10-nt arms (~3.4 nm, 56.8 kDa) → cytoplasm only (diffuse quickly through nuclear pore)
+   - 15-nt arms (~5.1 nm, 66.3 kDa) → both nucleus and cytoplasm (pore permeability threshold)
+   - 20-nt and 25-nt arms → both compartments, faster condensation, more nuclear retention
+   - Longer arms = slower export = more nuclear condensates 
+   - Longer arms are larger and diffuse more slowly through the nuclear pores
+
+2. ARM NUMBER (valency) -> more kissing loop arms means each nanostar can form more simultaneous interactions with nanostars, so they cluster faster together in the nucleus
+
+   - More arms → larger, fewer nuclear condensates; more small puncta in cytoplasm
+   - Higher valency accelerates nuclear aggregation, slowing export
+   - 2-arm to 4-arm range tested
+
+3. KISSING LOOP STRENGTH (avidity)
+   - Weakest: F variant (UAUAUA) → nuclear shells only, no full condensates
+   - Medium: E variant (GUAUAC)
+   - Standard: A variant (UCGCGA) — the JABr construct uses this
+   - Strongest: WT variant (GCGCGC, HIV wild type) → largest nuclear condensates, highest viscosity
+   - Stronger KL = higher nuclear retention + higher condensate viscosity
+
+Summary: Nuclear condensate fraction increases with longer arms, more arms, stronger kissing loops.
+
+
+CONDENSATE VOLUME DISTRIBUTIONS
+---------------------------------
+- Nuclear condensates: exponential volume distribution
+- Cytoplasmic condensates: power-law (broader) distribution
+- Explained by faster nanostar production in nucleus than export to cytoplasm
+- Pattern holds across designs and time points
+
+
+CONDENSATE MATERIAL PROPERTIES (FRAP + FUSION)
+------------------------------------------------
+- More viscous than P-granules and stress granules (which fuse in seconds)
+- MCP-mCherry (guest protein) FRAP recovery: ~54s in cytoplasm, ~13.1s in nucleus
+- Broccoli/Pepper aptamer FRAP dominated by ligand exchange, not RNA diffusion
+- Pepper (Broccoli alternative) fitted time constant: 79.5s — lower diffusivity
+- Incomplete recovery across all reporters → partially solid-like behavior
+- Fusion timescales comparable to nucleolus; nuclear events faster than cytoplasmic
+- One "splitting" event observed — may reflect interaction with cellular components
+
+
+INTERACTIONS WITH NUCLEAR ORGANELLES
+--------------------------------------
+- Nucleolus: fibrillarin accumulates on condensate surface (excluded from interior)
+- Cajal bodies: coilin aggregates on surface
+- Stress granules (G3BP1): colocalization only in cells with high cytoplasmic RNA — likely
+  metabolic stress from elevated RNA levels, not direct interaction
+- G3BP1 wraps around shells (not condensates) in some nuclei
+- No colocalization with P-bodies or nuclear speckles
+- No immune response: IFN-beta, ISG15, IFIT1 levels comparable to control cells
+
+
+MULTICOMPONENT / PROGRAMMABLE CONDENSATES
+-------------------------------------------
+- Distinct non-interacting condensates can coexist without mixing (kissing loops A, B, C)
+- Each KL variant engages in homomeric but not heteromeric binding
+- Aptamer choice (Broccoli vs. Pepper vs. Mango) affects folding and thus nuclear/cytoplasmic ratio
+
+Linker nanostars (chimeric — carries two different KLs):
+- 2-arm linkers: smaller, faster nuclear export → mixing at lower ratios in cytoplasm
+- 4-arm linkers: larger, slower nuclear export → higher ratios needed for cytoplasmic mixing
+- Mixing level controlled by stoichiometry of linker plasmid relative to distinct nanostar plasmids
+- Colocalization quantified via Pearson correlation coefficient (PCC) and mixing indices
+
+
+CARGO RECRUITMENT
+------------------
+Proteins:
+- MS2 aptamer arm recruits MCP-mCherry reporter
+- mCherry stays mostly cytoplasmic (no NLS)
+- FRAP: stronger KL (WT vs. A) → slower mCherry recovery → higher condensate viscosity
+
+Target RNA (sequence-specific, no tag required):
+- Nanostar modified with 21-nt hybridization domain complementary to target RNA
+- Colocalization observed only when sequences match
+- Works without modifying the target RNA — applicable in principle to any transcript
+- Longer recruitment domain slightly reduces condensate formation (steric hindrance)
+  but can be mitigated by increasing nanostar:target ratio
+
+
+SIMPLE COMPARTMENT MODEL
+--------------------------
+- Nanostars produced in nucleus at rate alpha, exported to cytoplasm at rate k_e
+- k_e sensitive to nanostar size/design (nuclear pore permeability)
+- Condensates form when concentration exceeds critical value
+- Model explains why different designs produce nuclear-only, cytoplasmic-only, or both
+
+
+KEY CONSTRUCTS REFERENCED
+---------------------------
+- 15nt-3A-Br (JABr): 15-nt stem, 3 arms, KL-A (UCGCGA), Broccoli — the dataset Daniel works with
+- 10nt nanostars: cytoplasm only
+- 25nt + WT KL: almost exclusively nuclear
+- 10nt + 5 arms: nuclear condensates despite short arm length
+
+
+PATENT
+-------
+EF, SL, AAT (through UC Regents): "Methods for building artificial RNA organelles in living cells"
+Provisional Application No. 06/367,956, filed August 5, 2024
+
+
+FUNDING
+--------
+- NSF FMRG:Bio award 2134772
+- Alfred P. Sloan Foundation: G-2021-16831, G-2024-22575
+- NIH: 1R35GM155833-01
+
+
+RELEVANCE TO DANIEL'S WORK
+----------------------------
+- The JABr construct (15-nt arm, KL-A, Broccoli) sits at the nuclear pore permeability threshold
+  — forms condensates in both nucleus and cytoplasm, which is why nuclear vs. cytoplasmic
+  classification matters in the pipeline
+- The paper uses 3D volume measurements extensively (Figs. 2, 3) — directly motivates the
+  3D volume estimation extension requested by PI
+- Paper uses individual 3D segmentation + CCDF plots for volume analysis
+- Partition coefficient used throughout as enrichment readout — consistent with Daniel's PC metric
+- Reference PC = 6.32; pipeline gets 1.71 (full stack) / 2.04 (ROI) — gap is a known open problem
+
+
+BACKGROUND CONCEPTS
+--------------------
+
+LIQUID-LIQUID PHASE SEPARATION (LLPS)
+- Normally molecules in a cell are spread out uniformly (like salt dissolved in water)
+- Past a critical concentration threshold, molecules spontaneously demix into two coexisting phases:
+    Dense phase: droplet enriched in the molecule (the condensate)
+    Dilute phase: surrounding environment with low concentration
+- Analogous to oil droplets forming in water — no membrane needed, purely interaction-driven
+- Driven by competition between:
+    Entropy: favors staying mixed (disorder)
+    Interactions: favorable bonds between molecules favor clustering
+- When interactions are strong enough (or concentration high enough), interactions win → phase separation
+- Critical concentration: the threshold at which this occurs (referenced explicitly in the paper)
+- RNA nanostars drive LLPS through kissing loop interactions — multivalency (multiple arms) allows
+  one molecule to bind several neighbors simultaneously, collapsing into a dense droplet
+- Partition coefficient measures phase separation strength: how much more concentrated is the
+  RNA inside the condensate (dense phase) vs. outside (dilute phase)
+  Reference PC = 6.32 means dense phase is ~6x more concentrated than dilute phase
+
+ROLE OF CATIONS (SALT)
+- RNA is heavily negatively charged — every nucleotide has a phosphate group on its backbone
+- A single nanostar (~100-200 nt) carries a large negative charge
+- Two RNA strands approaching each other experience strong electrostatic repulsion before
+  kissing loop interactions can form
+- Cations (Na+, K+, Mg2+) cluster around the negative backbone, partially neutralizing it
+  → electrostatic screening allows strands to get close enough to bind
+- Without sufficient cations: RNA strands repel, kissing loops can't form, no condensation
+
+Divalent vs. monovalent cations:
+- Mg2+ is especially important: 2+ charge makes it far more effective at screening than Na+/K+
+- Mg2+ also directly stabilizes RNA secondary structure (stem-loops, kissing loops) by
+  coordinating with the phosphate backbone — required for correct RNA folding
+- Most in vitro RNA experiments require Mg2+ for this reason
+- Salt concentration tunes interaction strength → affects critical concentration for phase separation
+- In vivo: intracellular conditions (~150 mM K+, ~1 mM Mg2+) are set by the cell and sufficient
+  for condensate formation in TORNADO-expressed nanostars
+
+ARM NUMBER — WHAT RATE DOES IT AFFECT?
+- More arms increases the rate of nuclear aggregation (condensation/nucleation), NOT export rate
+- Arm length controls export rate (k_e) — physically larger molecules diffuse slower through the pore
+- More arms = higher valency = each nanostar can form more simultaneous kissing loop interactions
+  → nanostars cluster together faster in the nucleus
+- Indirect effect on localization: nanostars aggregate into condensates before they can be exported,
+  resulting in higher nuclear retention
+- Also increases nucleation in cytoplasm (more small puncta) since valency enhances nucleation there too
+
+
+
+
+Week 1: Friday April 3, 2026
+- What happens when you have a random sequence DNA
+- less complementary -> more combinations (inverse relationship)
+- random sequence DNA make liquid crystals
+	Liquid Crystal formation in homogenous DNA duplexes
+- RNA very negatively charged
+	without sufficient cations:
+		RNA strands repel each other
+		Kissing loop interactions cannot form
+		No condensation
+after classifying the effects of the defects towards the duplex
+increase in temperature -> increase in defects
+
+How important is selectivity in NA hybridization
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

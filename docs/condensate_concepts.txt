@@ -1,0 +1,95 @@
+Condensate Concepts - Quick Notes
+==================================
+
+WHAT ARE CONDENSATES
+---------------------
+Membrane-less organelles inside cells formed by liquid-liquid phase separation (LLPS).
+Past a critical concentration, molecules spontaneously demix into two coexisting phases:
+  - Dense phase: droplet enriched in the molecule (the condensate)
+  - Dilute phase: surrounding environment with low concentration
+Analogous to oil droplets in water — distinct, sharp boundary, no membrane needed.
+
+
+WHY THEY CLUSTER
+-----------------
+Driven by multivalent molecular interactions — when a molecule can bind multiple
+neighbors simultaneously, they collectively collapse into a dense droplet.
+It's a competition between:
+  - Entropy: favors staying mixed (disorder)
+  - Interactions: favorable bonds between molecules favor clustering
+When interactions are strong enough (or concentration high enough), interactions win
+-> phase separation occurs.
+
+
+CONDENSATES AND RNA NANOSTARS
+-------------------------------
+RNA nanostars are the molecules that drive condensate formation in the Franco lab.
+They are ~100-200 nt single strands that fold into multi-arm star shapes via stem-loops.
+The tips of each arm have kissing loop sequences that bind to other nanostars' loops.
+Because each nanostar has multiple arms (multivalent), one molecule can bind several neighbors at once -> cooperative clustering -> phase separation into condensates.
+The condensate IS the dense droplet of many nanostars bound together.
+
+SIGNIFICANCE AND PRACTICALITY:
+---------------------	-------------
+ Why it matters scientifically
+  - Natural condensates (like stress granules, nucleolus) are hard to study because
+  they're made of many different proteins and RNAs — it's hard to isolate cause and effect
+  - RNA nanostars give you a minimal, programmable model — you control exactly what's in
+  the condensate and tune its properties by sequence alone
+  - This lets you ask clean questions: what controls condensate size? viscosity? nuclear
+  vs. cytoplasmic localization?
+
+  Practical applications being explored
+  - Drug delivery — condensates could act as programmable depots that release cargo (RNA
+  or protein) under specific cellular conditions
+  - Recruiting specific RNAs — the paper shows nanostars can pull a target RNA into a
+  condensate using a complementary hybridization domain, without modifying the target at
+  all. In principle applicable to any transcript
+  - Synthetic organelles — build a compartment inside a cell that concentrates specific
+  molecules, mimicking what natural organelles do but with user-defined composition
+  - Studying disease — many diseases (ALS, FTD, cancer) involve condensate dysfunction. A
+  clean synthetic model helps understand the physics of how condensates go wrong
+
+
+WHY GCGCG IS STRONGER
+-----------------------
+Kissing loop strength depends on the hydrogen bonds between base pairs:
+  - G-C pairs form 3 hydrogen bonds
+  - A-U pairs form only 2 hydrogen bonds
+GCGCG is all G-C pairs -> maximum hydrogen bonds -> stronger, more stable interaction.
+Weaker variants (e.g. UAUAUA) have A-U pairs -> fewer bonds -> easier to come apart.
+Stronger kissing loops = higher partition coefficient, more viscous condensates,
+more nuclear retention.
+
+
+ARM LENGTH -> MORE OR LESS NUCLEAR CONDENSATES
+------------------------------------------------
+Longer arms = MORE nuclear condensates.
+Arm length controls how fast nanostars can exit the nucleus through nuclear pores.
+Longer arms = physically larger molecule = diffuses more slowly through the pore.
+Slower export means nanostars accumulate in the nucleus long enough to condense there.
+  - 10-nt arms: small, exit quickly -> cytoplasm only
+  - 15-nt arms: at the threshold -> both nucleus and cytoplasm (JABr)
+  - 20-25-nt arms: mostly nuclear
+
+
+MORE ARMS -> MORE OR LESS NUCLEAR CONDENSATES
+-----------------------------------------------
+More arms = MORE nuclear condensates (indirectly).
+Arm number controls the rate of nuclear aggregation (not export rate).
+More arms = higher valency = each nanostar can bind more neighbors simultaneously
+-> nanostars cluster together faster inside the nucleus before they can be exported.
+Also increases small puncta in cytoplasm (higher nucleation there too).
+
+
+WHY BROCCOLI = GREEN FLUORESCENCE
+-----------------------------------
+Broccoli is an RNA aptamer — a short RNA sequence that folds into a specific 3D shape
+and binds a small molecule dye called DFHBI.
+When Broccoli binds DFHBI, the complex fluoresces green.
+It is named "Broccoli" because it glows green (like the vegetable).
+It belongs to a family of fluorescent RNA aptamers: Spinach, Broccoli, Mango, Pepper.
+These work like GFP but for RNA — instead of fusing a fluorescent protein, you attach
+an RNA sequence (Broccoli) that activates a dye's fluorescence when folded correctly.
+In JABr: the nanostar carries the Broccoli aptamer, so wherever JABr RNA concentrates
+(inside condensates), you see bright green fluorescence signal.
