@@ -1,0 +1,131 @@
+=Segmentation & Partition Coefficient Explanation
+=================================================
+
+HOW SEGMENTATION MASKS WORK
+-----------------------------
+After Cellpose runs on a single Z-slice, it outputs a mask — an array the same
+size as the image where every pixel is assigned a number:
+  - 0 = background (no object)
+  - 1, 2, 3, ... = object labels (each nucleus or condensate gets its own number)
+
+We run Cellpose twice per slice:
+  - Once on Ch1 (nuclei) → nuc_masks
+  - Once on Ch2 (condensates) → cond_masks
+
+We then convert these to boolean (True/False) arrays:
+  - nuc_mask[y, x]  = True if that pixel belongs to any nucleus
+  - cond_mask[y, x] = True if that pixel belongs to any condensate
+
+
+WHAT ∩ (INTERSECTION) MEANS
+-----------------------------
+∩ means "inside BOTH regions at the same time" — like the overlap in a Venn diagram.
+
+  nucleus mask  ∩  condensate mask  =  pixels inside BOTH a nucleus AND a condensate
+
+In Python this is just the & (AND) operator on boolean arrays:
+  img[nuc_mask & cond_mask]    → condensate-phase pixels
+  img[nuc_mask & ~cond_mask]   → dilute-phase pixels  (~ means NOT)
+
+
+PIXEL CATEGORIES (per slice)
+------------------------------
+Every pixel falls into one of four categories:
+
+  nuc_mask | cond_mask | Category
+  ---------|-----------|-----------------------------
+  True     | True      | condensate-phase  (bright blobs inside nucleus)
+  True     | False     | dilute-phase      (dim haze inside nucleus, outside blobs)
+  False    | True      | cytoplasmic condensate (outside nucleus — ignored for PC)
+  False    | False     | background (ignored)
+
+
+PARTITION COEFFICIENT CALCULATION
+-----------------------------------
+  condensate density  = mean intensity of all condensate-phase pixels (across all slices)
+  dilute-phase density = mean intensity of all dilute-phase pixels (across all slices)
+
+  PC = condensate density / dilute-phase density
+
+  PC > 1 means condensates are brighter (more enriched) than the surrounding nucleoplasm.
+  PC = 1 means no enrichment.
+
+This is not a geometric calculation — it is purely pixel-level math.
+Cellpose draws the boundaries; the PC calculation just asks which pixels
+fall inside which mask combination and averages their intensity values.
+
+
+THE CODE (from cellpose_pipeline.py)
+--------------------------------------
+  for z in range(cond_stack.shape[0]):
+      cond_mask = cond_masks[z] > 0      # boolean: True where condensate
+      nuc_mask  = nuc_masks[z] > 0       # boolean: True where nucleus
+      img = cond_stack[z]                # raw fluorescence intensities (Ch2)
+
+      cond_pixels   = img[cond_mask & nuc_mask]    # condensate-phase
+      dilute_pixels = img[nuc_mask & ~cond_mask]   # dilute-phase
+
+  cond_density  = mean(all cond_pixels across slices)
+  dilute_density = mean(all dilute_pixels across slices)
+  PC = cond_density / dilute_density
+
+
+SPEAKER NOTES
+==============
+
+Slide 4 - Automated Image Analysis Pipeline
+---------------------------------------------
+"The existing analysis in the Franco lab was done manually using ImageJ — clicking
+through images slice by slice, drawing ROIs by hand. That works for a small dataset
+but it's slow, hard to reproduce, and doesn't scale.
+
+What I built is a fully automated Python pipeline. The input is a raw Z-stack — 55
+optical slices through the cell, with two channels: Channel 1 for nuclei, and Channel 2
+for the JABr RNA condensates fluorescing green via the Broccoli aptamer.
+
+The first step is channel separation — we treat the two channels independently.
+Cellpose, a deep learning segmentation model, runs on each channel slice by slice
+and outputs a mask telling us exactly which pixels belong to which object.
+
+Once we have both masks, we do compartment classification — a condensate is labeled
+nuclear if its centroid overlaps with a nucleus mask, and cytoplasmic otherwise.
+
+From there, we extract features using scikit-image: area, centroid, and mean intensity
+per object per slice. And finally we compute the partition coefficient, which I'll
+explain on the next slide.
+
+The outputs are segmentation masks saved as TIF stacks, measurement tables as CSVs,
+and summary visualizations — everything reproducible with a single script."
+
+Slide 5 - Quantifying Nuclear Enrichment
+------------------------------------------
+"To quantify how enriched the condensates are inside the nucleus, we use the partition
+coefficient, or PC.
+
+Looking at this image — the blue regions are nuclei, the bright green blobs are
+condensates. You can see some condensates sitting clearly inside the nucleus, and
+some outside in the cytoplasm.
+
+The PC focuses only on what's happening inside the nucleus. We define two regions:
+the condensate-phase — the bright green blobs inside the nucleus — and the dilute-phase
+— the dim green background inside the nucleus, outside those blobs.
+
+We take the mean fluorescence intensity of each region. The condensate-phase is brighter
+because the RNA is concentrated there. The dilute-phase is dimmer — it's the surrounding
+nucleoplasm where the RNA is more dispersed.
+
+PC is just the ratio: condensate density divided by dilute-phase density. If PC is
+greater than 1, condensates are enriched relative to the nucleoplasm. The higher the
+PC, the more the RNA is concentrated into condensates rather than floating freely."
+
+
+RESULTS (Winter 2026)
+----------------------
+  Full-stack PC = 1.71
+  ROI PC        = 2.04
+  Reference PC  = 6.32  (manual measurement)
+
+The gap between our PC and the reference is due to condensate segmentation quality.
+Small errors in the condensate mask boundary shift which pixels are counted as
+condensate-phase vs. dilute-phase, which has a large effect on the intensity ratio.
+This motivates the Spring 2026 goal: better condensate segmentation models.
