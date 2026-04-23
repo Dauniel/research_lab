@@ -55,6 +55,32 @@ OUTPUTS
       flowmap_figure.png      <- pipeline diagram for each model
       raw_condensate_midZ.png <- reference raw image
 
+PC COMPARABILITY NOTE
+  The PC formula is identical across all models:
+    cond_pixels   = Ch2[ cond_mask & nuc_mask ]   (inside condensate AND nucleus)
+    dilute_pixels = Ch2[ nuc_mask & ~cond_mask ]  (inside nucleus, outside condensate)
+    PC = mean(cond_pixels) / mean(dilute_pixels)
+
+  However, the masks feeding into this formula differ:
+
+  Model            Condensate mask         Nuclei mask
+  ---------------  ----------------------  ----------------------
+  Old Cellpose     Cellpose cyto2 (2D)     Cellpose cyto2 (2D)
+  Cellpose 3       Cellpose cyto3 (3D)     Cellpose cyto3 (3D)
+  StarDist         StarDist2D              StarDist2D
+  U-FISH           U-FISH spot + disk      Otsu threshold (!)
+  Nellie           Frangi + graph          Frangi + graph
+
+  U-FISH is the outlier — it uses a simple Otsu threshold with
+  morphological closing for the nuclei mask rather than a trained
+  model. This gives it a different nuclear boundary than the others,
+  directly affecting which pixels count as dilute-phase and therefore
+  the PC. Its high PC (3.81) should be interpreted with this caveat.
+
+  For a truly fair comparison, all models should use the same nuclear
+  mask (e.g. Cellpose 3 nuclei masks) and only swap the condensate
+  mask — isolating condensate segmentation as the single variable.
+
 NEXT STEPS
   - Improve condensate segmentation quality (tighter boundaries)
     to push PC closer to reference.
