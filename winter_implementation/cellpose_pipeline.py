@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 # setting up paths
 
-BASE_DIR = Path.cwd()
-DATA_DIR = BASE_DIR / "data"
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR.parent / "data"
 OUTPUT_DIR = BASE_DIR / "outputs" / "cellpose_python"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
