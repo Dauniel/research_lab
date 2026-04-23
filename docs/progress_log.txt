@@ -1,0 +1,63 @@
+====================================================
+  Research Progress Log — C&S BIO 199 / 197
+  PI: Elisa Franco  |  Student: Daniel Chang
+====================================================
+
+----------------------------------------------------
+2026-04-22  Spring 2026 — Segmentation Model Survey
+----------------------------------------------------
+
+CONTEXT
+  Building on the Winter 2026 automated Cellpose pipeline
+  (ROI PC = 2.04, reference PC = 6.32). Goal is to find a
+  better segmentation approach to close the PC gap and
+  package the pipeline for lab-wide use.
+
+WHAT WAS DONE
+  Tested four new segmentation models on the JABr ROI dataset
+  (C2-ROI_raw_stack_sample2_5.tif, 55 x 185 x 259, 2-channel):
+
+  Model               Approach                      PC      Runtime
+  ------------------  ----------------------------  ------  -------
+  Old Cellpose (2D)   cyto2, slice-by-slice          2.04    —
+  Cellpose 3          cyto3 + denoising + 3D mode    3.33    11 s
+  StarDist 2D         versatile_fluo, slice-by-slice 1.91     6 s
+  U-FISH              ONNX spot detection             3.81     2 s
+  Nellie              Frangi filter + graph analysis  3.57    14 s
+  Reference value     manual/ImageJ benchmark         6.32    —
+
+KEY OBSERVATIONS
+  - Cellpose 3 (do_3D=True + DenoiseModel) is the strongest
+    principled improvement over the old pipeline — better boundary
+    tightness, fewer slice-stitching artifacts.
+  - U-FISH has the highest PC and fastest runtime but treats
+    condensates as point sources (spot detection), not filled
+    objects. PC may be inflated by cherry-picking bright spot
+    centers rather than full condensate volume.
+  - StarDist underperformed (PC < old baseline) — the
+    versatile_fluo model is trained on cell nuclei, not small
+    condensate puncta.
+  - Nellie is designed for tubular organelles (mitochondria);
+    results are reasonable but not biologically motivated here.
+  - All new models still fall short of the reference PC = 6.32.
+    Gap is likely due to condensate segmentation sensitivity —
+    small boundary errors have a large effect on intensity ratios.
+
+OUTPUTS
+  segmentation_test/
+    cellpose3_segmentation.py
+    stardist_segmentation.py
+    ufish_segmentation.py
+    nellie_segmentation.py
+    run_comparison.py          <- runs all models + generates figures
+    outputs/comparison/
+      comparison_figure.png   <- side-by-side segmentation + PC + runtime
+      flowmap_figure.png      <- pipeline diagram for each model
+      raw_condensate_midZ.png <- reference raw image
+
+NEXT STEPS
+  - Improve condensate segmentation quality (tighter boundaries)
+    to push PC closer to reference.
+  - Implement 3D volume estimation (aggregate masks across Z).
+  - Package pipeline with CLI arguments and config file.
+  - Write Spring 2026 poster / report.
