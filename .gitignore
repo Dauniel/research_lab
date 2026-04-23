@@ -37,11 +37,16 @@ __pycache__/
 # =========================
 tutorial/
 
-# Image formats
+# Image formats — block all by default, allow ROI files explicitly
 *.tif
 *.tiff
 *.ome
 *.ome.tif
+
+# Allow small ROI stacks used by the pipeline (full stacks are ~340 MB each)
+!data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif
+!data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
+!data/ROI/roi_sample2_5_1..tif
 
 # Numpy / arrays
 *.npy
