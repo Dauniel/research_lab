@@ -55,6 +55,32 @@ OUTPUTS
       flowmap_figure.png      <- pipeline diagram for each model
       raw_condensate_midZ.png <- reference raw image
 
+CELLPOSE 3 vs OLD CELLPOSE — KEY DIFFERENCES
+  Three concrete changes account for the PC improvement (2.04 → 3.33):
+
+  1. Denoising (new)
+     Cellpose 3 runs DenoiseModel cyto3 on every slice before
+     segmentation, suppressing shot noise and sharpening condensate
+     boundaries. The old pipeline segments the raw image directly
+     with no preprocessing. Note: PC intensities are always computed
+     from the original raw pixels — denoising only guides boundary
+     placement, not the intensity values used in the ratio.
+
+  2. 3D mode (new)
+     Cellpose 3 uses do_3D=True, processing XY, XZ, and YZ planes
+     simultaneously and merging gradient flows across all three before
+     drawing boundaries. The old pipeline runs 2D segmentation
+     independently on each of the 55 Z-slices with no cross-slice
+     awareness. A condensate spanning 3 slices gets segmented 3
+     separate times, often with inconsistent boundaries per slice —
+     directly hurting the intensity ratio.
+
+  3. Model version: cyto3 vs cyto2
+     cyto3 is trained on a larger and more diverse dataset than cyto2,
+     and is generally better at small, dim, or irregularly shaped
+     objects. The 3D mode is likely the largest single contributor
+     to the PC improvement.
+
 PC COMPARABILITY NOTE
   The PC formula is identical across all models:
     cond_pixels   = Ch2[ cond_mask & nuc_mask ]   (inside condensate AND nucleus)
