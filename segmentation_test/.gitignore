@@ -1,0 +1,10 @@
+# Large mask and image outputs — reproducible by running the scripts
+outputs/**/*.tif
+outputs/**/*.ome.tif
+outputs/**/*.pkl
+outputs/**/nellie_necessities/
+
+# Keep figures and summary CSVs
+!outputs/**/*.png
+!outputs/**/*summary.csv
+!outputs/**/*spots.csv
