@@ -113,3 +113,79 @@ NEXT STEPS
   - Implement 3D volume estimation (aggregate masks across Z).
   - Package pipeline with CLI arguments and config file.
   - Write Spring 2026 poster / report.
+
+----------------------------------------------------
+2026-04-23  Reference PC Investigation
+----------------------------------------------------
+
+CONTEXT
+  Reviewed the two manual reference CSV files (JABr_Partition
+  coefficient_nuclear.csv and JABr_Partition coefficient_cytoplasmic.csv)
+  for the ROI sample: 20240516_JABr_40uMDFHBI_20-40_Sample2_5_1.tif
+
+RAW VALUES FOR Sample2_5_1
+  Nuclear:
+    condensate density : 658.30
+    dilute density     : 104.09   <- anomalously high (see below)
+    nuclear PC         : 6.324    <- the reference value used all along
+
+  Cytoplasmic:
+    condensate density : 411.70
+    dilute density     :  85.14
+    cytoplasmic PC     : 4.836
+
+FINDING 1 — Elevated dilute density
+  The nuclear dilute density for Sample2_5_1 (104.09) is 30-35 units
+  higher than every other Sample2_5 entry (range: 68-73). If the dilute
+  density matched neighbors (~70), the reference nuclear PC would be
+  ~658/70 = 9.4 instead of 6.32. This suggests the reference value
+  may be understated, not overstated.
+
+  Possible cause: the manual ImageJ condensate mask for this ROI was
+  slightly loose, leaving bright condensate-edge pixels counted as
+  dilute-phase background, raising the dilute density and deflating PC.
+
+FINDING 2 — Background subtraction not in automated pipeline
+  The person who computed the manual reference CSVs confirmed she applied
+  background subtraction before computing PC. The automated pipeline
+  does NOT do this. Background subtraction inflates PC because it hits
+  the denominator disproportionately:
+
+    PC_bg = (condensate_density - B) / (dilute_density - B)
+
+  Since dilute density is much closer to background than condensate
+  density, subtracting B lowers the denominator more (proportionally),
+  pushing PC up. This means the reference PC = 6.32 and the pipeline
+  PC = 3.33 (Cellpose 3) are NOT computed the same way — part of the
+  gap is methodological, not just segmentation quality.
+
+  Need to confirm: what region was used to estimate background B?
+  (outside all cells, or something else?)
+
+WHAT PC THE CURRENT PIPELINE COMPUTES
+  The automated pipeline computes nuclear PC, raw (no background subtraction):
+
+    cond_pixels   = Ch2[ cond_mask & nuc_mask ]    (inside condensate AND nucleus)
+    dilute_pixels = Ch2[ nuc_mask & ~cond_mask ]   (inside nucleus, outside condensates)
+    PC = mean(cond_pixels) / mean(dilute_pixels)
+
+  This is equivalent to the nuclear PC column in the reference CSV,
+  EXCEPT the reference also applies background subtraction.
+
+TYPES OF PC (for clarity)
+  Nuclear PC      : condensate vs. dilute phase, both measured inside the nucleus.
+                    What the pipeline computes. Reference = 6.32 (bg-subtracted).
+  Cytoplasmic PC  : condensate vs. dilute phase, both measured in the cytoplasm.
+                    Reference = 4.84. Pipeline does not currently compute this.
+  Bg-subtracted PC: same formula but with a background constant B (measured
+                    outside all cells) subtracted from both densities before
+                    the ratio. Inflates PC relative to raw. Reference uses this.
+
+ACTION ITEMS
+  - Confirm background estimation method with Shiyi who did the manual analysis.
+  - Add background subtraction to the automated pipeline to match the reference method.
+  - Recompute PC with bg subtraction and compare to reference 6.32 directly.
+
+
+
+  Fluor Dens = summation of background subtracted voxel intensities / number of voels 

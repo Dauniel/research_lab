@@ -118,6 +118,8 @@ cond_density   = np.mean(np.concatenate(cond_pixels_all))
 dilute_density = np.mean(np.concatenate(dilute_pixels_all))
 pc             = cond_density / dilute_density
 
+
+
 print(f"\nCellpose 3 Partition Coefficient: {pc:.3f}")
 print(f"  Condensate density : {cond_density:.2f}")
 print(f"  Dilute density     : {dilute_density:.2f}")
