@@ -82,14 +82,30 @@ for z in range(cond_stack_roi.shape[0]):
 # Always use saved masks for PC — they represent the original pipeline output
 saved_cm = tiff.imread(OLD_COND_MASK)
 saved_nm = tiff.imread(OLD_NUC_MASK)
-cp_all, dp_all = [], []
-for z in range(cond_stack_roi.shape[0]):
-    img = cond_stack_roi[z]
-    cm  = saved_cm[z] > 0;  nm = saved_nm[z] > 0
-    cp_ = img[cm & nm];     dp_ = img[nm & ~cm]
-    if cp_.size > 0: cp_all.append(cp_)
-    if dp_.size > 0: dp_all.append(dp_)
-old_pc = np.mean(np.concatenate(cp_all)) / np.mean(np.concatenate(dp_all))
+
+_B         = float(cond_stack_roi.min())
+_cond_3d   = saved_cm > 0
+_nuc_3d    = saved_nm > 0
+_nuc_cond  = _cond_3d & _nuc_3d
+_cond_v    = np.clip(cond_stack_roi[_nuc_cond].astype(np.float64) - _B, 0, None)
+_cond_dens = _cond_v.sum() / _nuc_cond.sum()
+
+_dilute_3d  = _nuc_3d & ~_cond_3d
+_PATCH      = 10
+_Z, _Y, _X  = cond_stack_roi.shape
+_rng        = np.random.default_rng(42)
+_cands      = np.argwhere(_dilute_3d)
+_ib         = _cands[(_cands[:,0]+_PATCH<=_Z) & (_cands[:,1]+_PATCH<=_Y) & (_cands[:,2]+_PATCH<=_X)]
+_rng.shuffle(_ib)
+_dil_dens   = None
+for _z0, _y0, _x0 in _ib[:2000]:
+    if _dilute_3d[_z0:_z0+_PATCH, _y0:_y0+_PATCH, _x0:_x0+_PATCH].all():
+        _p        = cond_stack_roi[_z0:_z0+_PATCH, _y0:_y0+_PATCH, _x0:_x0+_PATCH].astype(np.float64) - _B
+        _dil_dens = np.clip(_p, 0, None).mean()
+        break
+if _dil_dens is None:
+    _dil_dens = np.clip(cond_stack_roi[_dilute_3d].astype(np.float64) - _B, 0, None).mean()
+old_pc = _cond_dens / _dil_dens
 
 print(f"[old_cellpose] OK in {timings['old_cellpose']:.1f}s  PC={old_pc:.3f}")
 

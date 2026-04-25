@@ -186,6 +186,71 @@ ACTION ITEMS
   - Add background subtraction to the automated pipeline to match the reference method.
   - Recompute PC with bg subtraction and compare to reference 6.32 directly.
 
+  Fluor Dens = summation of background subtracted voxel intensities / number of voxels
 
+----------------------------------------------------
+2026-04-25  PI Meeting — Background Subtraction Confirmed
+----------------------------------------------------
 
-  Fluor Dens = summation of background subtracted voxel intensities / number of voels 
+CONTEXT
+  Meeting with PI Elisa Franco. She provided the reference PC calculation
+  method from the Fabrini et al. manuscript (section 1.8.4).
+
+REFERENCE PC FORMULA (Fabrini et al., 1.8.4)
+  PC = Fluor. density_condensed / Fluor. density_dilute
+
+  Fluor. density_condensed:
+    1. B = minimum voxel intensity across the field of view
+    2. Mask condensate region (inside condensate ∩ nucleus)
+    3. Subtract B from each voxel, clip to 0
+    4. Sum all background-subtracted voxel intensities
+    5. Divide by total number of voxels in the mask
+    -> = Σ clip(pixel - B, 0) / n_voxels_in_mask
+
+  Fluor. density_dilute:
+    1. Same B (min voxel intensity across FOV)
+    2. Crop a 10×10×10 voxel patch from the dilute phase
+       (inside nucleus, outside condensates)
+    3. Subtract B, clip to 0
+    4. Mean of the patch
+    -> = mean clip(pixel - B, 0) over the 10×10×10 patch
+
+IMPLEMENTATION
+  Updated cellpose3_segmentation.py Step 4 to match this formula.
+  Key changes:
+    - B = cond_stack.min() (minimum voxel across full 3D FOV)
+    - Condensed density: vectorized over all 3D nuclear condensate voxels
+    - Dilute density: searches for a valid 10×10×10 patch entirely within
+      the nuclear dilute phase (rng seed=42 for reproducibility);
+      falls back to all dilute pixels if no patch found
+    - Removed the old slice-by-slice loop for PC; kept Cellpose 3 (do_3D)
+      as the segmentation model
+
+DECISION
+  Cellpose 3 (cyto3 + DenoiseModel + do_3D=True) stays as the pipeline
+  model. The bg-subtraction update is the only PC formula change needed.
+  Will rerun to get updated PC vs. reference 6.32.
+
+IMPLEMENTATION — ALL MODELS UPDATED (2026-04-25)
+  Applied the same background-subtracted PC formula to all five scripts:
+    segmentation_test/cellpose3_segmentation.py   (Step 4)
+    segmentation_test/stardist_segmentation.py    (Partition coefficient block)
+    segmentation_test/ufish_segmentation.py       (Partition coefficient block)
+    segmentation_test/nellie_segmentation.py      (Partition coefficient block)
+    segmentation_test/run_comparison.py           (old_cellpose inline PC block)
+
+  Changes in each:
+    - B = cond_stack.min() computed before the PC block
+    - Condensed density: vectorized 3D, clip(pixel-B, 0), sum / n_voxels
+    - Dilute density: 10×10×10 patch search (rng seed=42), fallback to all dilute pixels
+    - Summary CSVs updated to include "background" row
+    - Print statements updated to label values clearly
+
+  All five scripts now compute PC on the same methodological basis,
+  enabling a fair apples-to-apples comparison across models.
+
+NEXT STEPS
+  - Run all scripts and record new bg-subtracted PCs for each model
+  - Update model comparison table in CLAUDE.md with new values
+  - 3D volume estimation
+  - CLI packaging

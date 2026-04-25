@@ -99,31 +99,55 @@ for z in range(cond_stack.shape[0]):
 cond_df = pd.concat(cond_measurements, ignore_index=True)
 nuc_df  = pd.concat(nuc_measurements,  ignore_index=True)
 
-# ── Step 4: Partition coefficient ────────────────────────────────────────────
-cond_pixels_all   = []
-dilute_pixels_all = []
+# ── Step 4: Partition coefficient (background-subtracted) ────────────────────
+# Reference method (Fabrini et al.):
+#   B = minimum voxel intensity across the full FOV
+#   condensed density = Σ clip(pixel - B, 0) over nuclear condensate voxels / n voxels
+#   dilute density    = mean clip(pixel - B, 0) over a 10×10×10 patch from nuclear dilute phase
+B = float(cond_stack.min())
 
-for z in range(cond_stack.shape[0]):
-    cond_mask  = cond_masks_3d[z] > 0
-    nuc_mask   = nuc_masks_3d[z]  > 0
-    img        = cond_stack[z]
+cond_3d   = cond_masks_3d > 0
+nuc_3d    = nuc_masks_3d  > 0
 
-    cond_pixels   = img[cond_mask & nuc_mask]
-    dilute_pixels = img[nuc_mask & ~cond_mask]
+# Condensed density
+nuclear_cond_mask = cond_3d & nuc_3d
+cond_vals         = cond_stack[nuclear_cond_mask].astype(np.float64) - B
+cond_vals         = np.clip(cond_vals, 0, None)
+cond_density      = cond_vals.sum() / nuclear_cond_mask.sum()
 
-    if cond_pixels.size   > 0: cond_pixels_all.append(cond_pixels)
-    if dilute_pixels.size > 0: dilute_pixels_all.append(dilute_pixels)
+# Dilute density — 10×10×10 voxel patch entirely within nuclear dilute phase
+dilute_3d_mask = nuc_3d & ~cond_3d
+PATCH = 10
+Z, Y, X = cond_stack.shape
+rng = np.random.default_rng(42)
 
-cond_density   = np.mean(np.concatenate(cond_pixels_all))
-dilute_density = np.mean(np.concatenate(dilute_pixels_all))
-pc             = cond_density / dilute_density
+candidates = np.argwhere(dilute_3d_mask)
+in_bounds  = candidates[
+    (candidates[:, 0] + PATCH <= Z) &
+    (candidates[:, 1] + PATCH <= Y) &
+    (candidates[:, 2] + PATCH <= X)
+]
+rng.shuffle(in_bounds)
 
+dilute_density = None
+for z0, y0, x0 in in_bounds[:2000]:
+    if dilute_3d_mask[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].all():
+        patch          = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
+        dilute_density = np.clip(patch, 0, None).mean()
+        break
 
+if dilute_density is None:
+    dilute_density = np.clip(
+        cond_stack[dilute_3d_mask].astype(np.float64) - B, 0, None
+    ).mean()
 
-print(f"\nCellpose 3 Partition Coefficient: {pc:.3f}")
-print(f"  Condensate density : {cond_density:.2f}")
-print(f"  Dilute density     : {dilute_density:.2f}")
-print(f"  Total condensates  : {len(cond_df)}")
+pc = cond_density / dilute_density
+
+print(f"\nCellpose 3 Partition Coefficient (background-subtracted): {pc:.3f}")
+print(f"  Background (min FOV intensity) : {B:.2f}")
+print(f"  Condensate density             : {cond_density:.2f}")
+print(f"  Dilute density                 : {dilute_density:.2f}")
+print(f"  Total condensates              : {len(cond_df)}")
 
 # ── Save outputs ─────────────────────────────────────────────────────────────
 tiff.imwrite(OUTPUT_DIR / "cp3_condensate_masks.tif", cond_masks_3d.astype(np.int32))
@@ -132,8 +156,8 @@ cond_df.to_csv(OUTPUT_DIR / "cp3_condensate_measurements.csv", index=False)
 nuc_df.to_csv(OUTPUT_DIR  / "cp3_nuclei_measurements.csv",     index=False)
 
 summary = pd.DataFrame({
-    "metric": ["partition_coefficient", "condensate_density", "dilute_density", "n_condensates"],
-    "value":  [pc, cond_density, dilute_density, len(cond_df)],
+    "metric": ["partition_coefficient", "background", "condensate_density", "dilute_density", "n_condensates"],
+    "value":  [pc, B, cond_density, dilute_density, len(cond_df)],
 })
 summary.to_csv(OUTPUT_DIR / "cp3_summary.csv", index=False)
 

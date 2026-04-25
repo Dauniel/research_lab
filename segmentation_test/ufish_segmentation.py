@@ -65,29 +65,46 @@ for z in range(cond_stack.shape[0]):
 
 spots_df = pd.concat(all_spots, ignore_index=True)
 
-# Partition coefficient
-cond_pixels_all   = []
-dilute_pixels_all = []
+# Partition coefficient (background-subtracted, Fabrini et al. method)
+B = float(cond_stack.min())
 
-for z in range(cond_stack.shape[0]):
-    cond_mask  = cond_mask_stack[z]
-    nuc_mask   = nuc_mask_stack[z]
-    img        = cond_stack[z]
+cond_3d  = cond_mask_stack   # already boolean
+nuc_3d   = nuc_mask_stack
 
-    cond_pixels   = img[cond_mask & nuc_mask]
-    dilute_pixels = img[nuc_mask & ~cond_mask]
+nuclear_cond_mask = cond_3d & nuc_3d
+cond_vals         = cond_stack[nuclear_cond_mask].astype(np.float64) - B
+cond_vals         = np.clip(cond_vals, 0, None)
+cond_density      = cond_vals.sum() / nuclear_cond_mask.sum()
 
-    if cond_pixels.size   > 0: cond_pixels_all.append(cond_pixels)
-    if dilute_pixels.size > 0: dilute_pixels_all.append(dilute_pixels)
+dilute_3d_mask = nuc_3d & ~cond_3d
+PATCH = 10
+Z, Y, X = cond_stack.shape
+rng = np.random.default_rng(42)
+candidates = np.argwhere(dilute_3d_mask)
+in_bounds  = candidates[
+    (candidates[:, 0] + PATCH <= Z) &
+    (candidates[:, 1] + PATCH <= Y) &
+    (candidates[:, 2] + PATCH <= X)
+]
+rng.shuffle(in_bounds)
+dilute_density = None
+for z0, y0, x0 in in_bounds[:2000]:
+    if dilute_3d_mask[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].all():
+        patch          = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
+        dilute_density = np.clip(patch, 0, None).mean()
+        break
+if dilute_density is None:
+    dilute_density = np.clip(
+        cond_stack[dilute_3d_mask].astype(np.float64) - B, 0, None
+    ).mean()
 
-cond_density   = np.mean(np.concatenate(cond_pixels_all))
-dilute_density = np.mean(np.concatenate(dilute_pixels_all))
-pc             = cond_density / dilute_density
+pc = cond_density / dilute_density
 
-print(f"\nU-FISH Partition Coefficient: {pc:.3f}")
-print(f"  Condensate density : {cond_density:.2f}")
-print(f"  Dilute density     : {dilute_density:.2f}")
-print(f"  Total spots        : {len(spots_df)}")
+print(f"\nU-FISH Partition Coefficient (background-subtracted): {pc:.3f}")
+print(f"  Background (min FOV intensity) : {B:.2f}")
+print(f"  Condensate density             : {cond_density:.2f}")
+print(f"  Dilute density                 : {dilute_density:.2f}")
+print(f"  Total spots                    : {len(spots_df)}")
 
 # Save outputs
 tiff.imwrite(OUTPUT_DIR / "ufish_condensate_masks.tif", cond_mask_stack.astype(np.uint8))
@@ -95,8 +112,8 @@ tiff.imwrite(OUTPUT_DIR / "ufish_nuclei_masks.tif",     nuc_mask_stack.astype(np
 spots_df.to_csv(OUTPUT_DIR / "ufish_spots.csv", index=False)
 
 summary = pd.DataFrame({
-    "metric": ["partition_coefficient", "condensate_density", "dilute_density", "total_spots"],
-    "value":  [pc, cond_density, dilute_density, len(spots_df)],
+    "metric": ["partition_coefficient", "background", "condensate_density", "dilute_density", "total_spots"],
+    "value":  [pc, B, cond_density, dilute_density, len(spots_df)],
 })
 summary.to_csv(OUTPUT_DIR / "ufish_summary.csv", index=False)
 
