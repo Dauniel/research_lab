@@ -1,5 +1,6 @@
 metric,value
-partition_coefficient,1.9107924851040021
-condensate_density,306.17849925508534
-dilute_density,160.23639492093795
+partition_coefficient,3.8827560876832092
+background,76.0
+condensate_density,287.8170605116932
+dilute_density,74.127
 n_condensates,309.0
