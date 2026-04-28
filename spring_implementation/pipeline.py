@@ -10,8 +10,10 @@ Options:
     --output      Output directory (default: spring_implementation/outputs)
     --voxel-xy    XY pixel size in µm, e.g. 0.065 (optional; volumes reported in voxels if omitted)
     --voxel-z     Z-slice spacing in µm, e.g. 0.3   (optional)
-    --diameter    Cellpose segmentation diameter in pixels, None = auto-detect (default: None)
-    --no-gpu      Disable GPU even if available
+    --diameter      Cellpose condensate diameter in pixels, None = auto-detect (default: None)
+    --nuc-diameter  Cellpose nuclei diameter in pixels, None = auto-detect (default: 60)
+    --nuc-cellprob  Nuclei cell probability threshold (default: -2, lower = more merging)
+    --no-gpu        Disable GPU even if available
 
 Outputs (all written to --output):
     cond_restored.tif               denoised condensate stack
@@ -50,8 +52,10 @@ def parse_args():
     p.add_argument("--output",     default=None,   type=Path, help="Output directory")
     p.add_argument("--voxel-xy",   default=None,   type=float, help="XY pixel size in µm")
     p.add_argument("--voxel-z",    default=None,   type=float, help="Z-slice spacing in µm")
-    p.add_argument("--diameter",   default=None,   type=float, help="Cellpose diameter (px)")
-    p.add_argument("--no-gpu",     action="store_true",        help="Disable GPU")
+    p.add_argument("--diameter",      default=None,  type=float, help="Cellpose condensate diameter (px)")
+    p.add_argument("--nuc-diameter",  default=60.0,  type=float, help="Nuclei diameter (px)")
+    p.add_argument("--nuc-cellprob",  default=-2.0,  type=float, help="Nuclei cellprob_threshold")
+    p.add_argument("--no-gpu",        action="store_true",       help="Disable GPU")
     return p.parse_args()
 
 
@@ -86,21 +90,35 @@ def denoise_stack(stack: np.ndarray, dn_model, label: str) -> np.ndarray:
 
 # ── Step 3: Segment ───────────────────────────────────────────────────────────
 
-def segment_3d(stack: np.ndarray, seg_model, diameter, label: str) -> np.ndarray:
-    """
-    Segment a Z-stack with Cellpose 3 in native 3D mode.
-
-    do_3D=True processes XY, XZ, and YZ planes simultaneously and merges
-    gradient flows across axes, eliminating slice-by-slice stitching artefacts.
-    """
-    print(f"  Segmenting {label} (do_3D=True)...")
+def segment_condensates(stack: np.ndarray, seg_model, diameter) -> np.ndarray:
+    """Segment condensates with Cellpose 3 in native 3D mode."""
+    print("  Segmenting condensates (do_3D=True)...")
     masks_3d, _, _ = seg_model.eval(
         stack,
         do_3D=True,
         diameter=diameter,
         channels=[0, 0],
     )
-    print(f"    {label}: {masks_3d.max()} objects found")
+    print(f"    condensates: {masks_3d.max()} objects found")
+    return masks_3d.astype(np.int32)
+
+
+def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -> np.ndarray:
+    """
+    Segment nuclei with Cellpose 3 in native 3D mode.
+
+    Uses an explicit diameter and lower cellprob_threshold to prevent
+    over-segmentation of large nuclei with internal texture variation.
+    """
+    print("  Segmenting nuclei (do_3D=True)...")
+    masks_3d, _, _ = seg_model.eval(
+        stack,
+        do_3D=True,
+        diameter=diameter,
+        cellprob_threshold=cellprob_threshold,
+        channels=[0, 0],
+    )
+    print(f"    nuclei: {masks_3d.max()} objects found")
     return masks_3d.astype(np.int32)
 
 
@@ -319,9 +337,9 @@ def main():
 
     # Segment
     print("\n[3/6] Segmenting with Cellpose 3 (cyto3, do_3D=True)...")
-    seg_model    = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
-    cond_masks_3d = segment_3d(cond_restored, seg_model, args.diameter, "condensates")
-    nuc_masks_3d  = segment_3d(nuc_restored,  seg_model, args.diameter, "nuclei")
+    seg_model     = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    cond_masks_3d = segment_condensates(cond_restored, seg_model, args.diameter)
+    nuc_masks_3d  = segment_nuclei(nuc_restored, seg_model, args.nuc_diameter, args.nuc_cellprob)
 
     # Per-slice measurements
     print("\n[4/6] Extracting per-slice measurements...")
