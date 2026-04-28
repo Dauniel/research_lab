@@ -22,8 +22,8 @@ An automated Python pipeline that:
 3. Extracts per-object measurements: `area`, `centroid`, `mean_intensity` via `scikit-image.regionprops_table`
 4. Classifies condensates as nuclear or cytoplasmic based on spatial overlap with nuclei masks
 5. Computes the **nuclear partition coefficient** (PC):
-   - `condensate density` = mean intensity of pixels inside (nucleus ∩ condensate)
-   - `dilute-phase density` = mean intensity of pixels inside nucleus but outside condensates
+   - `condensate density` = mean intensity of pixel values that fall within both the nuclei mask and the condensate mask
+   - `dilute-phase density` = mean intensity of pixel values that fall within the nuclei mask but not the condensate mask
    - `PC = condensate density / dilute-phase density`
 6. Saves segmentation masks (TIF stacks) and measurement tables (CSV)
 
