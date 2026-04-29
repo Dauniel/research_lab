@@ -254,3 +254,68 @@ NEXT STEPS
   - Update model comparison table in CLAUDE.md with new values
   - 3D volume estimation
   - CLI packaging
+
+----------------------------------------------------
+2026-04-28  Spring Pipeline Built + Nuclei Over-Segmentation Fix
+----------------------------------------------------
+
+CONTEXT
+  Week 5 check-in. spring_implementation/pipeline.py is the new
+  production pipeline built from scratch this quarter. It incorporates
+  all improvements identified in the model survey and reference PC
+  investigation.
+
+WHAT WAS DONE
+
+  1. Built spring_implementation/pipeline.py
+     Full CLI pipeline with these steps:
+       [1/6] Load condensate + nuclei TIF stacks
+       [2/6] Denoise both channels with Cellpose 3 DenoiseModel (cyto3)
+       [3/6] Segment with Cellpose 3 (cyto3, do_3D=True)
+       [4/6] Per-slice regionprops: area, centroid, mean_intensity per Z
+       [5/6] 3D volume estimation: sum per-label voxels across all slices
+       [6/6] Background-subtracted PC (Fabrini method, rng seed=42)
+     Outputs: masks (TIF), measurements (CSV), volumes (CSV),
+              summary (CSV), results.png
+
+     PC on JABr ROI: 6.775 (reference = 6.32) — essentially matching
+     the manual reference for the first time.
+
+  2. Nuclei over-segmentation identified
+     Inspected Glasbey LUT visualization of nuclei masks. Large nuclei
+     with internal texture are being split into multiple fragments by
+     Cellpose — e.g. one nucleus gets labels brown + pink, another gets
+     green + cyan + yellow + red. These gaps between fragments corrupt
+     the PC calculation:
+       - Condensates in gaps are excluded from nuclear PC
+       - 10x10x10 dilute patch candidates that overlap gaps are rejected
+     This means the current PC = 6.775 may be incorrect.
+
+  3. Fix implemented in pipeline.py
+     Split segment_3d() into two separate functions:
+       segment_condensates() — unchanged defaults
+       segment_nuclei()      — added cellprob_threshold and explicit diameter
+     Added two new CLI args:
+       --nuc-diameter   (default: 60px)
+       --nuc-cellprob   (default: -2.0, lower = more merging)
+     Condensate segmentation is unaffected.
+
+  4. Speaker notes written
+     spring_implementation/speaker_notes.md now has notes for all 10
+     slides in week_5_slides.pdf.
+
+TODO — NEEDS TO BE DONE ON GPU PC
+  - Run pipeline.py with new --nuc-diameter and --nuc-cellprob defaults
+    on the JABr ROI data (C1 + C2 TIF files in data/)
+  - Check the nuclei Glasbey visualization to confirm splits are gone
+    (should see ~3 full nuclei as single-color regions per slide 7 image)
+  - If still splitting: try --nuc-cellprob -3 or -4, or increase
+    --nuc-diameter to 80
+  - Record the new PC after nuclei fix and compare to 6.775 and 6.32
+  - Update progress log with results
+
+COMMAND TO RUN
+  python spring_implementation/pipeline.py \
+    --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+    --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+    --output spring_implementation/outputs
