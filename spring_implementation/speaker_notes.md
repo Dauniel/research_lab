@@ -38,7 +38,7 @@
 
 ## Slide 7: Background Subtracted Partition Coefficient
 
-"To quantify how strongly condensates are enriched inside the nucleus, we compute the Partition Coefficient. The image on the left shows what we're actually measuring — the green regions are pixels that fall inside both a condensate mask and a nucleus mask, the blue regions are the nuclear dilute phase, and the red-tinted regions outside the nuclei represent the background.
+"To quantify how strongly condensates are enriched inside the nucleus, we compute the Partition Coefficient. The image on the left shows what we're actually measuring — the green regions are pixels that fall inside both a condensate mask and a nucleus mask, the blue regions are the nuclear dilute phase, and the red-tinted regions outside the nuclei represent the background.x
 
 Before we compute anything, we subtract B — the minimum intensity value across the entire field of view. This removes the camera dark current and autofluorescence, which act as a constant floor on every pixel. Without this correction, that floor inflates the dilute phase denominator much more than the condensate numerator — because the dilute phase is dim, so B is a large fraction of it — and that artificially pulls the PC toward 1.
 
