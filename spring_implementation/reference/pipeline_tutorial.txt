@@ -1,0 +1,180 @@
+====================================================
+  pipeline.py — Command Reference & Tutorial
+  Spring 2026 Condensate Analysis Pipeline
+====================================================
+
+Run all commands from the repo root (the folder containing
+spring_implementation/, data/, etc.).
+
+
+----------------------------------------------------
+QUICK START
+----------------------------------------------------
+
+Minimum command — two required arguments:
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
+
+Outputs go to spring_implementation/outputs/ by default.
+Takes ~30–60 s on an NVIDIA GPU.
+
+
+----------------------------------------------------
+ALL OPTIONS
+----------------------------------------------------
+
+  --cond <path>          (REQUIRED) Condensate channel Z-stack TIF
+  --nuc  <path>          (REQUIRED) Nuclei channel Z-stack TIF
+
+  --output <dir>         Where to save all outputs.
+                         Default: spring_implementation/outputs/
+
+  --voxel-xy <float>     XY pixel size in micrometres (e.g. 0.065).
+                         If omitted, volumes are reported in voxels only.
+
+  --voxel-z  <float>     Z-slice spacing in micrometres (e.g. 0.3).
+                         Must be paired with --voxel-xy for µm³ volumes.
+
+  --diameter <float>     Condensate diameter hint for Cellpose (pixels).
+                         Default: None (auto-detect). Rarely needs changing.
+
+  --nuc-diameter <float> Nuclei diameter hint for Cellpose (pixels).
+                         Default: None (auto-detect). Try 80–120 if nuclei
+                         are being split into many fragments.
+
+  --nuc-cellprob <float> Cellpose cell-probability threshold for nuclei.
+                         Default: -2.0. Higher values are stricter (fewer
+                         detected objects); lower values are more permissive.
+
+  --no-gpu               Force CPU mode even if a GPU is available.
+                         Much slower (~10× longer runtime).
+
+
+----------------------------------------------------
+OUTPUTS  (written to --output directory)
+----------------------------------------------------
+
+  cond_restored.tif            Denoised condensate stack (used for segmentation)
+  nuc_restored.tif             Denoised nuclei stack
+  condensate_masks.tif         3D condensate instance label volume (uint32)
+  nuclei_masks.tif             3D nuclei instance label volume (uint32)
+
+  condensate_measurements.csv  Per-slice regionprops:
+                                 label, area (px²), centroid-0, centroid-1,
+                                 mean_intensity, z
+  nuclei_measurements.csv      Same schema for nuclei
+
+  condensate_volumes.csv       Per-3D-object volume:
+                                 label, volume_voxels [, volume_um3]
+  nuclei_volumes.csv           Same schema for nuclei
+
+  summary.csv                  Key results:
+                                 partition_coefficient, background,
+                                 condensate_density, dilute_density,
+                                 n_condensates, n_nuclei,
+                                 voxel_xy_um, voxel_z_um
+
+  results.png                  Summary figure (PC scorecard + histograms)
+
+
+----------------------------------------------------
+EXAMPLES
+----------------------------------------------------
+
+1. Standard run (ROI data, GPU, default settings)
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
+
+2. Save outputs to a custom directory
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+        --output my_results/sample2_5/
+
+3. Include physical voxel sizes (enables µm³ volume output)
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+        --voxel-xy 0.065 \
+        --voxel-z  0.3
+
+4. Run on a new dataset in a separate output folder
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample3_1.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample3_1.tif \
+        --output spring_implementation/outputs_sample3_1/
+
+5. Run without GPU (laptop / no CUDA)
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+        --no-gpu
+
+6. Manually set nuclei diameter if nuclei are over-segmented
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+        --nuc-diameter 100
+
+7. Full run with all options
+
+    python spring_implementation/pipeline.py \
+        --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
+        --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
+        --output spring_implementation/outputs/ \
+        --voxel-xy 0.065 \
+        --voxel-z  0.3 \
+        --nuc-diameter 100 \
+        --nuc-cellprob -2
+
+
+----------------------------------------------------
+REGENERATING SLIDE FIGURES
+----------------------------------------------------
+
+After a pipeline run, update slide_08_pc_method.png with:
+
+    python spring_implementation/make_slide_08.py
+
+This reads spring_implementation/outputs/summary.csv automatically,
+so the PC value always reflects the most recent pipeline run.
+
+
+----------------------------------------------------
+PIPELINE STEPS (what it does internally)
+----------------------------------------------------
+
+  [1/6] Load          Read condensate + nuclei TIF stacks
+  [2/6] Denoise       Cellpose 3 DenoiseModel (denoise_cyto3) on each channel
+  [3/6] Segment       Cellpose 3 (cyto3, do_3D=True) — condensates and nuclei
+  [4/6] Measure       Per-slice regionprops (area, centroid, mean_intensity)
+  [5/6] Volume        Sum voxels per 3D label → volume_voxels [+ volume_um3]
+  [6/6] PC            Fabrini et al. method:
+                        B = min voxel intensity across full FOV
+                        cond_density = mean clip(pixel−B, 0) over nuclear condensate voxels
+                        dilute_density = mean clip(pixel−B, 0) over a 10×10×10
+                                         patch in the nuclear dilute phase
+                        PC = cond_density / dilute_density
+
+
+----------------------------------------------------
+BEST-KNOWN SETTINGS  (JABr ROI dataset, as of 2026-04-29)
+----------------------------------------------------
+
+  Model:          cyto3 (condensates and nuclei)
+  do_3D:          True
+  --diameter:     None (auto-detect)
+  --nuc-diameter: None (auto-detect)
+  --nuc-cellprob: -2.0
+
+  Result: PC = 6.048  (reference = 6.32, error = -4.3%)
+          186 condensates, 76 nuclei detected across 55 Z-slices
