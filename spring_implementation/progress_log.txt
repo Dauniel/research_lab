@@ -452,3 +452,72 @@ FINAL RESULT (2026-04-30)
   Background (B)    : 76.00
 
   Essentially matches the manual reference benchmark.
+
+----------------------------------------------------
+2026-04-30  Pipeline Summary — How It Works
+----------------------------------------------------
+
+PIPELINE STEPS
+
+  [1/6] Load
+    Reads two TIF Z-stacks: condensate channel (Ch2) and nuclei channel (Ch1).
+    Each stack is 55 x 185 x 259 pixels.
+
+  [2/6] Denoise
+    Cellpose 3 DenoiseModel runs on every Z-slice before segmentation.
+    Sharpens condensate boundaries without modifying the raw pixel values
+    used for intensity measurements.
+
+  [3/6] Segment
+    Cellpose 3 (cyto3, do_3D=True) segments both channels in full 3D,
+    tracking objects consistently across Z rather than slice-by-slice.
+    Post-processing on nuclei: binary mask -> 3D connected components ->
+    drop fragments < 1000 voxels, giving 5 clean nuclei from 76 raw labels.
+
+  [4/6] Measure
+    regionprops_table extracts area, centroid, and mean intensity per
+    object per Z-slice.
+
+  [5/6] 3D Volume
+    Counts total voxels per label across all 55 slices.
+
+  [6/6] Partition Coefficient (see below)
+
+PARTITION COEFFICIENT FORMULA
+
+  B            = minimum pixel value across the full 3D stack
+                 (removes camera/autofluorescence background offset)
+
+  cond_density = mean( clip(pixel - B, 0) )
+                 over all voxels inside BOTH condensate mask AND nucleus mask
+
+  dil_density  = mean( clip(pixel - B, 0) )
+                 over the 50 lowest-intensity valid 10x10x10 patches
+                 found entirely within the nuclear dilute region
+
+  PC = cond_density / dil_density
+
+  Interpretation: how much brighter are condensates compared to the
+  surrounding nuclear background, after removing the camera offset.
+
+THREE IMPROVEMENTS THAT BROUGHT PC FROM ~3.3 TO 6.297
+
+  1. Background subtraction (added April 25)
+     The reference was computed with B subtracted from all pixels before
+     taking the ratio; the old pipeline was not doing this. Adding it was
+     the largest single jump in PC.
+
+  2. Connected-component nuclei relabeling (added April 30)
+     Cellpose splits each nucleus into ~15-25 fragments due to internal
+     condensate texture. Taking the binary mask (nuclei > 0) and running
+     3D connected-component analysis collapses 76 Cellpose labels into
+     5 true connected regions. This cleans up which pixels count as
+     dilute phase without meaningfully changing the nuclear area covered.
+
+  3. Lowest-intensity patch selection for dilute density (added April 30)
+     The old approach picked a single random 10x10x10 patch — PC swung
+     from 4.3 to 6.0 depending on the random seed. The fix: find all
+     ~88,000 valid patches in the dilute region, sort by mean intensity,
+     and average the 50 quietest. This is deterministic, stable, and
+     matches how a researcher manually selects a quiet representative
+     background spot.
