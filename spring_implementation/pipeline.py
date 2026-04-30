@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 import tifffile as tiff
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from skimage.measure import regionprops_table
 
 import torch
@@ -269,48 +270,98 @@ def save_outputs(
 
 # ── Step 8: Visualisation ─────────────────────────────────────────────────────
 
+_COND_COLOR = "#2e8b57"   # green for condensates
+_NUC_COLOR  = "#4169e1"   # blue for nuclei
+_REFERENCE  = 6.32
+
+
 def plot_summary(
     output_dir: Path,
-    cond_stack, cond_restored, cond_masks_3d,
     cond_df, nuc_df,
+    cond_vol_df, nuc_vol_df,
     pc_result: dict,
 ):
-    """Save a 2×3 summary figure to output_dir/results.png."""
-    mid_z = cond_stack.shape[0] // 2
-    fig, axs = plt.subplots(2, 3, figsize=(15, 8))
+    """
+    Save a 3×3 summary figure to output_dir/results.png.
 
-    axs[0, 0].imshow(cond_stack[mid_z], cmap="gray")
-    axs[0, 0].set_title(f"Raw condensates (z={mid_z})")
-    axs[0, 0].axis("off")
+    Layout:
+      Row 0: [PC scorecard] [Objects per Z-slice ── spans 2 cols ──────────]
+      Row 1: [Condensate Area] [Condensate Intensity] [Condensate 3D Volume]
+      Row 2: [Nuclei Area]     [Nuclei Intensity]     [Nuclei 3D Volume]
+    """
+    fig = plt.figure(figsize=(15, 10))
+    gs  = GridSpec(3, 3, figure=fig, hspace=0.45, wspace=0.35)
 
-    axs[0, 1].imshow(cond_restored[mid_z], cmap="gray")
-    axs[0, 1].set_title("After Cellpose 3 denoising")
-    axs[0, 1].axis("off")
+    ax_pc  = fig.add_subplot(gs[0, 0])
+    ax_obj = fig.add_subplot(gs[0, 1:])
+    ax_ca  = fig.add_subplot(gs[1, 0])
+    ax_ci  = fig.add_subplot(gs[1, 1])
+    ax_cv  = fig.add_subplot(gs[1, 2])
+    ax_na  = fig.add_subplot(gs[2, 0])
+    ax_ni  = fig.add_subplot(gs[2, 1])
+    ax_nv  = fig.add_subplot(gs[2, 2])
 
-    axs[0, 2].imshow(cond_masks_3d[mid_z], cmap="tab20")
-    axs[0, 2].set_title(f"Condensate masks (do_3D=True)\nPC = {pc_result['pc']:.3f}")
-    axs[0, 2].axis("off")
+    # ── PC scorecard ──────────────────────────────────────────────────────────
+    pc_val = pc_result["pc"]
+    ax_pc.axis("off")
+    ax_pc.text(0.5, 0.96, "Partition Coefficient",
+               ha="center", va="top", fontsize=12, fontweight="bold",
+               transform=ax_pc.transAxes, color="#333333")
+    ax_pc.text(0.5, 0.70, f"{pc_val:.3f}",
+               ha="center", va="center", fontsize=42, fontweight="bold",
+               color=_COND_COLOR, transform=ax_pc.transAxes)
 
-    axs[1, 0].hist(cond_df["area"], bins=40, color="steelblue")
-    axs[1, 0].set_title("Condensate area per slice (px²)")
-    axs[1, 0].set_xlabel("Area")
-    axs[1, 0].set_ylabel("Count")
+    bar = ax_pc.inset_axes([0.05, 0.05, 0.90, 0.32])
+    bar.barh(1, pc_val,     color=_COND_COLOR, height=0.5)
+    bar.barh(0, _REFERENCE, color="#cc3333",   height=0.5)
+    bar.set_yticks([0, 1])
+    bar.set_yticklabels(
+        [f"Reference  {_REFERENCE:.2f}", f"Pipeline  {pc_val:.3f}"],
+        fontsize=8.5,
+    )
+    bar.set_xlim(0, max(pc_val, _REFERENCE) * 1.25)
+    bar.xaxis.set_visible(False)
+    bar.spines[["top", "right", "left"]].set_visible(False)
 
-    axs[1, 1].hist(cond_df["mean_intensity"], bins=40, color="steelblue")
-    axs[1, 1].set_title("Condensate mean intensity")
-    axs[1, 1].set_xlabel("Mean intensity")
-
+    # ── Objects per Z-slice ───────────────────────────────────────────────────
     cond_counts = cond_df.groupby("z")["label"].count()
     nuc_counts  = nuc_df.groupby("z")["label"].count()
-    axs[1, 2].plot(cond_counts.index, cond_counts.values, label="Condensates")
-    axs[1, 2].plot(nuc_counts.index,  nuc_counts.values,  label="Nuclei")
-    axs[1, 2].set_title("Objects per Z-slice")
-    axs[1, 2].set_xlabel("Z-slice")
-    axs[1, 2].set_ylabel("Count")
-    axs[1, 2].legend()
+    ax_obj.plot(cond_counts.index, cond_counts.values, color=_COND_COLOR, label="Condensates")
+    ax_obj.plot(nuc_counts.index,  nuc_counts.values,  color=_NUC_COLOR,  label="Nuclei")
+    ax_obj.set_title("Objects per Z-slice")
+    ax_obj.set_xlabel("Z-slice")
+    ax_obj.set_ylabel("Count")
+    ax_obj.legend()
 
-    plt.tight_layout()
-    plt.savefig(output_dir / "results.png", dpi=150)
+    # ── Condensate row ────────────────────────────────────────────────────────
+    ax_ca.hist(cond_df["area"],           bins=40, color=_COND_COLOR)
+    ax_ca.set_title("Condensate Area (px²)")
+    ax_ca.set_xlabel("Area")
+    ax_ca.set_ylabel("Count")
+
+    ax_ci.hist(cond_df["mean_intensity"], bins=40, color=_COND_COLOR)
+    ax_ci.set_title("Condensate Intensity")
+    ax_ci.set_xlabel("Mean Intensity")
+
+    ax_cv.hist(cond_vol_df["volume_voxels"], bins=40, color=_COND_COLOR)
+    ax_cv.set_title("Condensate 3D Volume (voxels)")
+    ax_cv.set_xlabel("Volume (voxels)")
+
+    # ── Nuclei row ────────────────────────────────────────────────────────────
+    ax_na.hist(nuc_df["area"],           bins=40, color=_NUC_COLOR)
+    ax_na.set_title("Nuclei Area (px²)")
+    ax_na.set_xlabel("Area")
+    ax_na.set_ylabel("Count")
+
+    ax_ni.hist(nuc_df["mean_intensity"], bins=40, color=_NUC_COLOR)
+    ax_ni.set_title("Nuclei Intensity")
+    ax_ni.set_xlabel("Mean Intensity")
+
+    ax_nv.hist(nuc_vol_df["volume_voxels"], bins=40, color=_NUC_COLOR)
+    ax_nv.set_title("Nuclei 3D Volume (voxels)")
+    ax_nv.set_xlabel("Volume (voxels)")
+
+    plt.savefig(output_dir / "results.png", dpi=150, bbox_inches="tight")
     plt.close()
 
 
@@ -371,7 +422,7 @@ def main():
         pc_result,
         args.voxel_xy, args.voxel_z,
     )
-    plot_summary(output_dir, cond_stack, cond_restored, cond_masks_3d, cond_df, nuc_df, pc_result)
+    plot_summary(output_dir, cond_df, nuc_df, cond_vol_df, nuc_vol_df, pc_result)
 
     print(f"\nAll outputs saved to: {output_dir}")
 
