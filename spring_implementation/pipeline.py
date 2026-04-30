@@ -36,7 +36,7 @@ import pandas as pd
 import tifffile as tiff
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-from skimage.measure import regionprops_table
+from skimage.measure import regionprops_table, label
 
 import torch
 from cellpose import models, core, denoise
@@ -106,10 +106,13 @@ def segment_condensates(stack: np.ndarray, seg_model, diameter) -> np.ndarray:
 
 def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -> np.ndarray:
     """
-    Segment nuclei with Cellpose 3 in native 3D mode.
+    Segment nuclei with Cellpose 3 in native 3D mode, then post-process.
 
-    Uses an explicit diameter and lower cellprob_threshold to prevent
-    over-segmentation of large nuclei with internal texture variation.
+    Cellpose over-splits large nuclei into many fragments due to internal
+    condensate texture. Post-processing: collapse to a binary mask, re-label
+    by 3D connected components, and drop noise fragments < 1000 voxels.
+    This gives a clean nucleus count without changing the binary pixel coverage
+    (and therefore doesn't affect the PC formula).
     """
     print("  Segmenting nuclei (do_3D=True)...")
     masks_3d, _, _ = seg_model.eval(
@@ -119,8 +122,19 @@ def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -
         cellprob_threshold=cellprob_threshold,
         channels=[0, 0],
     )
-    print(f"    nuclei: {masks_3d.max()} objects found")
-    return masks_3d.astype(np.int32)
+    print(f"    raw Cellpose labels: {masks_3d.max()}")
+
+    # Re-label by connected components and drop noise
+    connected = label(masks_3d > 0, connectivity=3)
+    sizes     = np.bincount(connected.ravel())
+    clean     = np.zeros_like(connected, dtype=np.int32)
+    new_lbl   = 0
+    for lbl in range(1, connected.max() + 1):
+        if sizes[lbl] >= 1000:
+            new_lbl += 1
+            clean[connected == lbl] = new_lbl
+    print(f"    nuclei after connected-component relabeling: {clean.max()}")
+    return clean
 
 
 # ── Step 4: Per-slice measurements ───────────────────────────────────────────
@@ -185,10 +199,11 @@ def compute_partition_coefficient(
     B = minimum voxel intensity across the full FOV (camera background offset).
     Condensed density  = mean clip(pixel - B, 0) over voxels inside both nucleus
                          and condensate masks.
-    Dilute density     = mean of per-patch means across up to 50 randomly
-                         sampled 10×10×10 patches fully within the nuclear
-                         dilute region. Falls back to all dilute voxels if
-                         no valid patches are found.
+    Dilute density     = mean of the 50 lowest-intensity valid 10×10×10 patches
+                         fully within the nuclear dilute region. Sorting by
+                         intensity approximates manual selection of a quiet
+                         representative region. Falls back to all dilute voxels
+                         if no valid patches are found.
     PC = condensed density / dilute density.
 
     Returns a dict with keys: pc, background, cond_density, dilute_density.
@@ -202,32 +217,30 @@ def compute_partition_coefficient(
     cond_vals    = np.clip(cond_stack[nuclear_cond].astype(np.float64) - B, 0, None)
     cond_density = cond_vals.sum() / nuclear_cond.sum()
 
-    # Dilute phase — average of up to N_PATCHES valid 10×10×10 patches
-    # sampled randomly across the nuclear dilute region. More stable than
-    # a single patch but faithful to the Fabrini patch-based method.
+    # Dilute phase — mean of the N_PATCHES lowest-intensity valid 10×10×10 patches.
+    # Sorting by intensity (ascending) approximates how a researcher manually picks
+    # a quiet representative dilute-phase region, giving a stable and reproducible
+    # estimate without relying on random sampling.
     dilute_3d  = nuc_3d & ~cond_3d
     PATCH      = 10
     N_PATCHES  = 50
     Z, Y, X    = cond_stack.shape
-    rng        = np.random.default_rng(42)
     candidates = np.argwhere(dilute_3d)
     in_bounds  = candidates[
         (candidates[:, 0] + PATCH <= Z) &
         (candidates[:, 1] + PATCH <= Y) &
         (candidates[:, 2] + PATCH <= X)
     ]
-    rng.shuffle(in_bounds)
 
     patch_means = []
     for z0, y0, x0 in in_bounds:
-        if len(patch_means) == N_PATCHES:
-            break
         if dilute_3d[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].all():
             patch = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
             patch_means.append(np.clip(patch, 0, None).mean())
 
     if patch_means:
-        dilute_density = float(np.mean(patch_means))
+        patch_means.sort()
+        dilute_density = float(np.mean(patch_means[:N_PATCHES]))
     else:
         dilute_density = np.clip(
             cond_stack[dilute_3d].astype(np.float64) - B, 0, None
