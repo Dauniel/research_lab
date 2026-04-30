@@ -110,10 +110,10 @@ def main():
     nuc_mask  = nuc_masks_3d[Z_SLICE]  > 0
     rgb       = make_overlay(raw, cond_mask, nuc_mask)
 
-    fig = plt.figure(figsize=(14, 6), facecolor="#d8d8d8")
+    fig = plt.figure(figsize=(14, 6), facecolor="white")
     ax_img  = fig.add_axes([0.02, 0.13, 0.44, 0.82])
     ax_form = fig.add_axes([0.51, 0.10, 0.47, 0.88])
-    ax_form.set_facecolor("#d8d8d8")
+    ax_form.set_facecolor("white")
 
     ax_img.imshow(rgb)
     ax_img.set_title(f"Full slice  (z = {Z_SLICE})", fontsize=14,
