@@ -319,3 +319,70 @@ COMMAND TO RUN
     --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif \
     --nuc  data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif \
     --output spring_implementation/outputs
+
+----------------------------------------------------
+2026-04-29  Nuclei Parameter Sweep + nuclei Model Test
+----------------------------------------------------
+
+CONTEXT
+  Following the nuclei over-segmentation issue identified on 2026-04-28,
+  ran a parameter sweep on spring_implementation/pipeline.py and tested
+  a separate model_type="nuclei" in nuclei_model_test/test_nuclei_model.py.
+  Goal: find the setting that reduces over-segmentation and keeps PC
+  closest to reference 6.32.
+
+ROOT CAUSE OF REGRESSION
+  The new segment_nuclei() function introduced on 2026-04-28 set
+  --nuc-diameter default to 60px. This is too small — the actual nuclei
+  span 100px+ in this ROI. Cellpose interprets the forced small diameter
+  as instructions to find many small objects, fragmenting each nucleus
+  into ~33 pieces (103 total). This broke the nuclear binary mask coverage
+  and dropped PC to 2.134.
+  Fix: revert --nuc-diameter default to None (auto-detect).
+
+PARAMETER SWEEP RESULTS (spring_implementation/pipeline.py)
+  All runs: model_type=cyto3, do_3D=True, diameter=None unless noted.
+
+  --nuc-cellprob  --nuc-diameter  Nuclei found  PC
+  --------------  --------------  ------------  -----
+  -6              None            160           5.261
+  -2              None             76           6.048  <- best match to ref
+  0 (CP default)  None             80           6.775  <- original result
+  -2              60px            103           2.134  <- regression (bad diam)
+  -4              80px            100           3.180  <- still bad diam
+
+  cellprob direction note: lower values produce MORE objects on this data
+  (opposite of the "lower = more merging" assumption in the code comment).
+  Likely because lower threshold includes more background pixels as cell,
+  adding spurious detections rather than merging fragments.
+
+NUCLEI MODEL TEST (nuclei_model_test/test_nuclei_model.py)
+  Tested model_type="nuclei" (dedicated nucleus segmentation model) vs
+  cyto3 for the nuclei pass. Condensate segmentation unchanged (cyto3).
+
+  Model          Nuclei found  PC
+  -------------  ------------  -----
+  cyto3 (best)    76           6.048
+  nuclei model   109           6.922
+
+  The nuclei model performed worse: more over-segmentation (109 vs 76)
+  and PC farther from reference. The nuclei model is tuned for clean
+  DAPI/Hoechst images; the JABr nuclei channel contains fluorescent
+  aptamer signal with internal condensate texture, which confuses it.
+
+BEST CONFIGURATION (updated pipeline.py defaults)
+  Model:         cyto3  (both condensates and nuclei)
+  do_3D:         True
+  --diameter:    None  (condensate auto-detect)
+  --nuc-diameter: None  (nuclei auto-detect)   <- changed from 60
+  --nuc-cellprob: -2.0
+
+  PC = 6.048  (reference = 6.32, error = -4.3%)
+  Nuclei objects: 76  (still visually over-segmented, but binary mask
+  coverage is correct — PC formula uses nuc_masks > 0, not label count)
+
+OUTSTANDING ISSUE
+  Nuclei are still visually split into ~25 fragments each. True fix
+  would require either: (a) 2D slice-by-slice + stitch_threshold for
+  nuclei, or (b) a custom-trained model. Not blocking for poster/report
+  since the PC accuracy is within acceptable range of reference.

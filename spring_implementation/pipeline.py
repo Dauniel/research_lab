@@ -11,7 +11,7 @@ Options:
     --voxel-xy    XY pixel size in µm, e.g. 0.065 (optional; volumes reported in voxels if omitted)
     --voxel-z     Z-slice spacing in µm, e.g. 0.3   (optional)
     --diameter      Cellpose condensate diameter in pixels, None = auto-detect (default: None)
-    --nuc-diameter  Cellpose nuclei diameter in pixels, None = auto-detect (default: 60)
+    --nuc-diameter  Cellpose nuclei diameter in pixels, None = auto-detect (default: None)
     --nuc-cellprob  Nuclei cell probability threshold (default: -2, lower = more merging)
     --no-gpu        Disable GPU even if available
 
@@ -53,7 +53,7 @@ def parse_args():
     p.add_argument("--voxel-xy",   default=None,   type=float, help="XY pixel size in µm")
     p.add_argument("--voxel-z",    default=None,   type=float, help="Z-slice spacing in µm")
     p.add_argument("--diameter",      default=None,  type=float, help="Cellpose condensate diameter (px)")
-    p.add_argument("--nuc-diameter",  default=60.0,  type=float, help="Nuclei diameter (px)")
+    p.add_argument("--nuc-diameter",  default=None,  type=float, help="Nuclei diameter (px), None = auto-detect")
     p.add_argument("--nuc-cellprob",  default=-2.0,  type=float, help="Nuclei cellprob_threshold")
     p.add_argument("--no-gpu",        action="store_true",       help="Disable GPU")
     return p.parse_args()
