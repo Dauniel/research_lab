@@ -386,3 +386,34 @@ OUTSTANDING ISSUE
   would require either: (a) 2D slice-by-slice + stitch_threshold for
   nuclei, or (b) a custom-trained model. Not blocking for poster/report
   since the PC accuracy is within acceptable range of reference.
+
+----------------------------------------------------
+2026-04-30  Dilute Density Instability Fix
+----------------------------------------------------
+
+PROBLEM IDENTIFIED
+  The single 10×10×10 patch approach for dilute density was seed-dependent:
+    seed=42 : dilute=72.91  PC=6.048
+    seed=1  : dilute=~73.7  PC=5.983
+    seed=67 : dilute=~100.9 PC=4.372
+  A 1.6x swing in PC from different random seeds is unacceptable for a
+  reproducible pipeline. The Fabrini method specifies a manually chosen
+  representative patch; our automated single-patch approximation was
+  unstable because it depended entirely on where the shuffle landed first.
+
+APPROACHES TESTED
+  Single patch (seed=42)  : PC=6.048  -- unstable, seed-dependent
+  All dilute voxels       : PC=4.769  -- stable but farther from reference
+  50-patch average (final): PC=5.213  -- stable, closer to Fabrini spirit
+
+FIX IMPLEMENTED (pipeline.py)
+  Replaced single-patch search with average of up to 50 randomly sampled
+  valid 10×10×10 patches across the nuclear dilute region (seed=42 for
+  reproducible shuffle order). Falls back to all dilute voxels if fewer
+  than 1 valid patch is found.
+  Result is identical across repeated runs: PC=5.213, dilute=84.59.
+
+CURRENT BEST RESULT
+  PC = 5.213  (reference = 6.32, error = -17.5%)
+  The gap vs. reference is now methodologically honest -- prior closeness
+  with seed=42 (PC=6.048) was partly coincidental patch placement.

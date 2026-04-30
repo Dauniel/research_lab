@@ -185,10 +185,10 @@ def compute_partition_coefficient(
     B = minimum voxel intensity across the full FOV (camera background offset).
     Condensed density  = mean clip(pixel - B, 0) over voxels inside both nucleus
                          and condensate masks.
-    Dilute density     = mean clip(pixel - B, 0) over the first fully-nuclear,
-                         fully-dilute 10×10×10 voxel patch found (representative
-                         sample of the nuclear dilute phase). Falls back to the
-                         mean over all dilute voxels if no patch is found.
+    Dilute density     = mean of per-patch means across up to 50 randomly
+                         sampled 10×10×10 patches fully within the nuclear
+                         dilute region. Falls back to all dilute voxels if
+                         no valid patches are found.
     PC = condensed density / dilute density.
 
     Returns a dict with keys: pc, background, cond_density, dilute_density.
@@ -202,9 +202,12 @@ def compute_partition_coefficient(
     cond_vals    = np.clip(cond_stack[nuclear_cond].astype(np.float64) - B, 0, None)
     cond_density = cond_vals.sum() / nuclear_cond.sum()
 
-    # Dilute phase — 10×10×10 patch entirely within nuclear dilute region
+    # Dilute phase — average of up to N_PATCHES valid 10×10×10 patches
+    # sampled randomly across the nuclear dilute region. More stable than
+    # a single patch but faithful to the Fabrini patch-based method.
     dilute_3d  = nuc_3d & ~cond_3d
     PATCH      = 10
+    N_PATCHES  = 50
     Z, Y, X    = cond_stack.shape
     rng        = np.random.default_rng(42)
     candidates = np.argwhere(dilute_3d)
@@ -215,14 +218,17 @@ def compute_partition_coefficient(
     ]
     rng.shuffle(in_bounds)
 
-    dilute_density = None
-    for z0, y0, x0 in in_bounds[:2000]:
-        if dilute_3d[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].all():
-            patch          = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
-            dilute_density = np.clip(patch, 0, None).mean()
+    patch_means = []
+    for z0, y0, x0 in in_bounds:
+        if len(patch_means) == N_PATCHES:
             break
+        if dilute_3d[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].all():
+            patch = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
+            patch_means.append(np.clip(patch, 0, None).mean())
 
-    if dilute_density is None:
+    if patch_means:
+        dilute_density = float(np.mean(patch_means))
+    else:
         dilute_density = np.clip(
             cond_stack[dilute_3d].astype(np.float64) - B, 0, None
         ).mean()
