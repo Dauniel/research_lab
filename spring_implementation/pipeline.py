@@ -48,24 +48,37 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Cellpose 3 condensate segmentation + partition coefficient pipeline."
     )
-    p.add_argument("--cond",       required=True,  type=Path, help="Condensate channel TIF")
-    p.add_argument("--nuc",        required=True,  type=Path, help="Nuclei channel TIF")
+    p.add_argument("--roi",         default=None,   type=Path, help="Multi-channel ROI TIF (Z, 2, Y, X): ch0=nuclei, ch1=condensate")
+    p.add_argument("--cond",       default=None,   type=Path, help="Condensate channel TIF (required if --roi not given)")
+    p.add_argument("--nuc",        default=None,   type=Path, help="Nuclei channel TIF (required if --roi not given)")
     p.add_argument("--output",     default=None,   type=Path, help="Output directory")
     p.add_argument("--voxel-xy",   default=None,   type=float, help="XY pixel size in µm")
     p.add_argument("--voxel-z",    default=None,   type=float, help="Z-slice spacing in µm")
     p.add_argument("--diameter",      default=None,  type=float, help="Cellpose condensate diameter (px)")
     p.add_argument("--nuc-diameter",  default=None,  type=float, help="Nuclei diameter (px), None = auto-detect")
     p.add_argument("--nuc-cellprob",  default=-2.0,  type=float, help="Nuclei cellprob_threshold")
+    p.add_argument("--cond-topx",     default=75.0,  type=float, help="Use mean of top-X%% brightest voxels for cond density (default 75)")
     p.add_argument("--no-gpu",        action="store_true",       help="Disable GPU")
     return p.parse_args()
 
 
 # ── Step 1: Load ──────────────────────────────────────────────────────────────
 
-def load_stacks(cond_path: Path, nuc_path: Path):
-    """Load condensate and nuclei Z-stacks from TIF files."""
-    cond_stack = tiff.imread(cond_path)
-    nuc_stack  = tiff.imread(nuc_path)
+def load_stacks(cond_path: Path | None, nuc_path: Path | None, roi_path: Path | None = None):
+    """Load condensate and nuclei Z-stacks from TIF files.
+
+    Accepts either a single multi-channel ROI TIF (Z, 2, Y, X) via roi_path,
+    or separate cond_path and nuc_path stacks.
+    """
+    if roi_path is not None:
+        roi = tiff.imread(roi_path)
+        if roi.ndim != 4 or roi.shape[1] != 2:
+            raise ValueError(f"Expected (Z, 2, Y, X) ROI TIF, got shape {roi.shape}")
+        nuc_stack  = roi[:, 0, :, :].copy()
+        cond_stack = roi[:, 1, :, :].copy()
+    else:
+        cond_stack = tiff.imread(cond_path)
+        nuc_stack  = tiff.imread(nuc_path)
     print(f"Condensate stack : {cond_stack.shape}  dtype={cond_stack.dtype}")
     print(f"Nuclei stack     : {nuc_stack.shape}  dtype={nuc_stack.dtype}")
     return cond_stack, nuc_stack
@@ -192,13 +205,21 @@ def compute_partition_coefficient(
     cond_stack: np.ndarray,
     cond_masks_3d: np.ndarray,
     nuc_masks_3d: np.ndarray,
+    cond_topx: float = 75.0,
 ) -> dict:
     """
     Compute the nuclear partition coefficient using the Fabrini et al. method.
 
     B = minimum voxel intensity across the full FOV (camera background offset).
-    Condensed density  = mean clip(pixel - B, 0) over voxels inside both nucleus
-                         and condensate masks.
+    Condensed density  = mean clip(pixel - B, 0) over the top-`cond_topx` percent
+                         brightest voxels inside (condensate mask AND nucleus
+                         mask). The Cellpose 3 do_3D=True mask is more inclusive
+                         than a manually-drawn Imaris mask — it adds a dim halo
+                         and dark interior pixels around each condensate core.
+                         Trimming the bottom 25% of mask pixels (cond_topx=75)
+                         removes that fluff and recovers densities that match
+                         the manual reference (validated: -16% bias -> +3% bias
+                         across 29 JABr cells; see batch_sweep_topx.py).
     Dilute density     = mean of the 50 lowest-intensity valid 10×10×10 patches
                          fully within the nuclear dilute region. Sorting by
                          intensity approximates manual selection of a quiet
@@ -212,10 +233,12 @@ def compute_partition_coefficient(
     cond_3d = cond_masks_3d > 0
     nuc_3d  = nuc_masks_3d  > 0
 
-    # Condensed phase
+    # Condensed phase — top-X% brightest voxels in (cond mask & nuc mask).
     nuclear_cond = cond_3d & nuc_3d
     cond_vals    = np.clip(cond_stack[nuclear_cond].astype(np.float64) - B, 0, None)
-    cond_density = cond_vals.sum() / nuclear_cond.sum()
+    cond_vals_sorted = np.sort(cond_vals)
+    cutoff       = int(len(cond_vals_sorted) * (1.0 - cond_topx / 100.0))
+    cond_density = float(cond_vals_sorted[cutoff:].mean())
 
     # Dilute phase — mean of the N_PATCHES lowest-intensity valid 10×10×10 patches.
     # Sorting by intensity (ascending) approximates how a researcher manually picks
@@ -395,9 +418,13 @@ def main():
     use_gpu = core.use_gpu() and not args.no_gpu
     print(f"GPU: {'enabled — ' + torch.cuda.get_device_name(0) if use_gpu else 'disabled'}")
 
+    if args.roi is None and (args.cond is None or args.nuc is None):
+        print("Error: provide either --roi or both --cond and --nuc")
+        raise SystemExit(1)
+
     # Load
     print("\n[1/6] Loading stacks...")
-    cond_stack, nuc_stack = load_stacks(args.cond, args.nuc)
+    cond_stack, nuc_stack = load_stacks(args.cond, args.nuc, args.roi)
 
     # Denoise
     print("\n[2/6] Denoising with Cellpose 3 DenoiseModel...")
@@ -425,7 +452,7 @@ def main():
 
     # Partition coefficient
     print("\n[6/6] Computing partition coefficient...")
-    pc_result = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d)
+    pc_result = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d, cond_topx=args.cond_topx)
     print(f"    Partition Coefficient : {pc_result['pc']:.3f}")
     print(f"    Background (B)        : {pc_result['background']:.2f}")
     print(f"    Condensate density    : {pc_result['cond_density']:.2f}")

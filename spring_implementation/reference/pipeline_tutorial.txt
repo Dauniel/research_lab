@@ -1,6 +1,7 @@
 ====================================================
-  pipeline.py — Command Reference & Tutorial
-  Spring 2026 Condensate Analysis Pipeline
+  Spring 2026 Condensate Analysis — Command Reference
+  Scripts: pipeline.py · batch_compare.py ·
+           batch_sweep_topx.py · diagnose_cell.py
 ====================================================
 
 Run all commands from the repo root (the folder containing
@@ -10,13 +11,23 @@ All example commands are single-line — just copy and paste
 directly into PowerShell or any terminal.
 
 
+====================================================
+  pipeline.py  —  single-image analysis
+====================================================
+
+Runs the full segmentation + PC pipeline on one cell.
+
 ----------------------------------------------------
 QUICK START
 ----------------------------------------------------
 
-Minimum command — two required arguments:
+Split-channel TIFs (original format):
 
     python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
+
+Multi-channel ROI TIF (Box Cut ROI format, shape Z×2×Y×X):
+
+    python spring_implementation/pipeline.py --roi "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample2_5_1.tif"
 
 Outputs go to spring_implementation/outputs/ by default.
 Takes ~30-60 s on an NVIDIA GPU.
@@ -26,48 +37,57 @@ Takes ~30-60 s on an NVIDIA GPU.
 ALL OPTIONS
 ----------------------------------------------------
 
-  --cond <path>          (REQUIRED) Condensate channel Z-stack TIF
-  --nuc  <path>          (REQUIRED) Nuclei channel Z-stack TIF
+  --roi  <path>          Multi-channel ROI TIF (Z, 2, Y, X):
+                           ch0 = nuclei, ch1 = condensate.
+                           Alternative to --cond + --nuc.
+
+  --cond <path>          Condensate channel Z-stack TIF.
+                           Required if --roi not given.
+
+  --nuc  <path>          Nuclei channel Z-stack TIF.
+                           Required if --roi not given.
 
   --output <dir>         Where to save all outputs.
-                         Default: spring_implementation/outputs/
+                           Default: spring_implementation/outputs/
 
   --voxel-xy <float>     XY pixel size in micrometres (e.g. 0.065).
-                         If omitted, volumes are reported in voxels only.
+                           If omitted, volumes are reported in voxels only.
 
   --voxel-z  <float>     Z-slice spacing in micrometres (e.g. 0.3).
-                         Must be paired with --voxel-xy for um^3 volumes.
+                           Must be paired with --voxel-xy for um^3 volumes.
 
   --diameter <float>     Condensate diameter hint for Cellpose (pixels).
-                         Default: None (auto-detect). Rarely needs changing.
+                           Default: None (auto-detect).
 
   --nuc-diameter <float> Nuclei diameter hint for Cellpose (pixels).
-                         Default: None (auto-detect). Try 80-120 if nuclei
-                         are being split into many fragments.
+                           Default: None (auto-detect). Try 80-120 if nuclei
+                           are being split into many fragments.
 
   --nuc-cellprob <float> Cellpose cell-probability threshold for nuclei.
-                         Default: -2.0. Higher values are stricter (fewer
-                         detected objects); lower values are more permissive.
+                           Default: -2.0.
 
-  --no-gpu               Force CPU mode even if a GPU is available.
-                         Much slower (~10x longer runtime).
+  --cond-topx <float>    Use mean of top-X% brightest voxels in the
+                           condensate mask for cond density.
+                           Default: 75. Use 100 to get the old full mean.
+
+  --no-gpu               Force CPU mode. Much slower (~10x).
 
 
 ----------------------------------------------------
 OUTPUTS  (written to --output directory)
 ----------------------------------------------------
 
-  cond_restored.tif            Denoised condensate stack (used for segmentation)
+  cond_restored.tif            Denoised condensate stack
   nuc_restored.tif             Denoised nuclei stack
-  condensate_masks.tif         3D condensate instance label volume (uint32)
-  nuclei_masks.tif             3D nuclei instance label volume (uint32)
+  condensate_masks.tif         3D condensate instance labels (uint32)
+  nuclei_masks.tif             3D nuclei instance labels (uint32)
 
   condensate_measurements.csv  Per-slice regionprops:
-                                 label, area (px^2), centroid-0, centroid-1,
+                                 label, area, centroid-0, centroid-1,
                                  mean_intensity, z
   nuclei_measurements.csv      Same schema for nuclei
 
-  condensate_volumes.csv       Per-3D-object volume:
+  condensate_volumes.csv       Per-object 3D volume:
                                  label, volume_voxels [, volume_um3]
   nuclei_volumes.csv           Same schema for nuclei
 
@@ -84,73 +104,281 @@ OUTPUTS  (written to --output directory)
 EXAMPLES
 ----------------------------------------------------
 
-1. Standard run (ROI data, GPU, default settings)
+1. Standard run — split-channel TIFs
 
     python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
 
-2. Save outputs to a custom directory
+2. Multi-channel Box ROI TIF
 
-    python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --output my_results/sample2_5/
+    python spring_implementation/pipeline.py --roi "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample2_5_1.tif" --output spring_implementation/outputs/Sample2_5_1/
 
-3. Include physical voxel sizes (enables um^3 volume output)
+3. With physical voxel sizes (enables um^3 volume output)
 
     python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --voxel-xy 0.065 --voxel-z 0.3
 
-4. Run on a new dataset in a separate output folder
+4. Reproduce original full-mean PC (no top-75% trim)
 
-    python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample3_1.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample3_1.tif --output spring_implementation/outputs_sample3_1/
+    python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --cond-topx 100
 
-5. Run without GPU (laptop / no CUDA)
+5. CPU-only run (no GPU)
 
     python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --no-gpu
 
-6. Manually set nuclei diameter if nuclei are over-segmented
+6. Manually set nuclei diameter if over-segmented
 
     python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --nuc-diameter 100
 
 7. Full run with all options
 
-    python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --output spring_implementation/outputs/ --voxel-xy 0.065 --voxel-z 0.3 --nuc-diameter 100 --nuc-cellprob -2
+    python spring_implementation/pipeline.py --cond data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif --nuc data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif --output spring_implementation/outputs/my_run/ --voxel-xy 0.065 --voxel-z 0.3 --nuc-diameter 100 --nuc-cellprob -2 --cond-topx 75
 
 
 ----------------------------------------------------
-REGENERATING SLIDE FIGURES
+PIPELINE STEPS  (what it does internally)
 ----------------------------------------------------
+
+  [1/6] Load      Read TIF stack(s). --roi splits ch0/ch1 automatically.
+  [2/6] Denoise   Cellpose 3 DenoiseModel (denoise_cyto3) on each channel.
+  [3/6] Segment   Cellpose 3 (cyto3, do_3D=True) for condensates + nuclei.
+                    Nuclei post-processing: binary mask → 3D connected
+                    components → drop fragments < 1000 voxels.
+  [4/6] Measure   Per-slice regionprops (area, centroid, mean_intensity).
+  [5/6] Volume    Count voxels per 3D label.
+  [6/6] PC        Fabrini et al. method (background-subtracted):
+                    B            = min voxel intensity across full FOV
+                    cond_density = mean clip(pixel-B, 0) over top-75%
+                                   brightest voxels in (cond & nuc mask)
+                    dil_density  = mean of the 50 lowest-intensity valid
+                                   10×10×10 patches in nuclear dilute region
+                    PC = cond_density / dil_density
+
+
+----------------------------------------------------
+BEST-KNOWN SETTINGS  (JABr ROI, as of 2026-05-05)
+----------------------------------------------------
+
+  Model:          cyto3  (condensates and nuclei)
+  do_3D:          True
+  --cond-topx:    75     (top-75% brightest voxels)
+  --nuc-cellprob: -2.0
+  --diameter:     None   (auto-detect)
+  --nuc-diameter: None   (auto-detect)
+
+  Result on Sample2_5_1:
+    PC = 6.297  (reference = 6.32, error = -0.4%)
+    186 condensates, 5 nuclei (after connected-component relabeling)
+
+
+====================================================
+  batch_compare.py  —  batch cross-reference vs reference CSV
+====================================================
+
+Runs the pipeline on every Cut ROI TIF for one construct and
+compares pipeline PC against the Imaris/manual reference CSV.
+Uses central-nucleus selection + top-75% by default.
+
+----------------------------------------------------
+QUICK START
+----------------------------------------------------
+
+    python spring_implementation/batch_compare.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr"
+
+Outputs go to spring_implementation/outputs/batch_JABr/ by default.
+
+
+----------------------------------------------------
+ALL OPTIONS
+----------------------------------------------------
+
+  --construct-dir <path>   Construct folder containing:
+                             Cut ROI/  (TIF files)
+                             *_Partition coefficient_nuclear.csv
+                           (REQUIRED)
+
+  --output <dir>           Output directory.
+                             Default: outputs/batch_<construct>/
+
+  --nuc-cellprob <float>   Nuclei cellprob threshold. Default: -2.0
+
+  --cond-topx <float>      Top-X% brightest cond voxels. Default: 75.
+                             Pass 100 to use original full mean.
+
+  --all-nuclei             Skip nucleus selection — pool all detected
+                             nuclei (original pipeline behaviour).
+
+  --no-gpu                 Force CPU mode.
+
+
+----------------------------------------------------
+OUTPUTS
+----------------------------------------------------
+
+  comparison.csv    One row per cell:
+                      filename, ref_pc, pipeline_pc,
+                      ref_cond_density, ref_dilute_density,
+                      pipeline_cond_density, pipeline_dilute_density,
+                      pipeline_background, error_pct
+
+  scatter.png       Pipeline PC vs reference PC scatter plot
+                      with Pearson r, RMSE, and mean error annotated.
+
+
+----------------------------------------------------
+EXAMPLES
+----------------------------------------------------
+
+1. Standard run on JABr (best settings)
+
+    python spring_implementation/batch_compare.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr" --output spring_implementation/outputs/batch_JABr_final
+
+2. Run on a different construct
+
+    python spring_implementation/batch_compare.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JwtBr" --output spring_implementation/outputs/batch_JwtBr_final
+
+3. Reproduce original pipeline (no nucleus selection, full mean)
+
+    python spring_implementation/batch_compare.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr" --all-nuclei --cond-topx 100 --output spring_implementation/outputs/batch_JABr_original
+
+4. CPU-only run
+
+    python spring_implementation/batch_compare.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr" --no-gpu
+
+
+====================================================
+  batch_sweep_topx.py  —  tune cond-topx across all cells
+====================================================
+
+Runs the pipeline on every cell once, then computes PC using
+top-10%, 20%, 25%, 30%, 40%, 50%, 75%, and full mean — all
+from the same segmentation. Finds the optimal top-X% trim for
+a given construct's reference data.
+
+----------------------------------------------------
+QUICK START
+----------------------------------------------------
+
+    python spring_implementation/batch_sweep_topx.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr"
+
+
+----------------------------------------------------
+ALL OPTIONS
+----------------------------------------------------
+
+  --construct-dir <path>   Same as batch_compare.py  (REQUIRED)
+  --output <dir>           Default: outputs/sweep_topx_<construct>/
+  --nuc-cellprob <float>   Default: -2.0
+  --no-gpu
+
+
+----------------------------------------------------
+OUTPUTS
+----------------------------------------------------
+
+  sweep.csv       One row per cell, columns for each variant:
+                    filename, ref_pc, pc_full, pc_top75 ... pc_top10,
+                    cond_full, cond_top75 ... cond_top10, pipe_dil
+
+  summary.csv     Per-variant aggregate stats:
+                    variant, pearson_r, rmse, mean_error_pct,
+                    mean_abs_error_pct
+
+  sweep_plot.png  Grid of scatter plots, one per variant.
+
+
+----------------------------------------------------
+EXAMPLE
+----------------------------------------------------
+
+    python spring_implementation/batch_sweep_topx.py --construct-dir "C:/Users/Danie/Box/Condensate Volume Quantification/JABr" --output spring_implementation/outputs/diagnostics/sweep_topx_JABr
+
+
+====================================================
+  diagnose_cell.py  —  single-cell deep diagnostic
+====================================================
+
+Runs the full pipeline on one Cut ROI TIF and dumps:
+  • mask overlay (condensate mask + selected nucleus on raw image)
+  • intensity histograms (inside mask vs dilute region)
+  • density computed several ways (mean, top-50%, top-25%, peak)
+  • comparison to reference values if provided
+
+Use this when a cell's PC is far off and you want to know why.
+
+----------------------------------------------------
+QUICK START
+----------------------------------------------------
+
+    python spring_implementation/diagnose_cell.py --tif "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample3_3_11.tif" --ref-pc 16.95 --ref-cond 1361.65 --ref-dil 80.33
+
+
+----------------------------------------------------
+ALL OPTIONS
+----------------------------------------------------
+
+  --tif <path>       Multi-channel ROI TIF  (REQUIRED)
+  --output <dir>     Default: outputs/diagnose_<stem>/
+  --ref-pc <float>   Reference partition coefficient (optional)
+  --ref-cond <float> Reference condensate density (optional)
+  --ref-dil <float>  Reference dilute density (optional)
+  --no-gpu
+
+
+----------------------------------------------------
+OUTPUTS
+----------------------------------------------------
+
+  raw_midZ.png        Mid-Z slice of condensate and nuclei channels
+  mask_overlay.png    Raw + condensate mask contour + nucleus overlay
+                        + voxels-used-for-PC highlighted in red
+  intensity_hist.png  Histogram of pixel intensities inside cond mask
+                        vs dilute region, with pipeline/ref means marked
+  summary.txt         All density variants + mask coverage stats
+
+
+----------------------------------------------------
+EXAMPLES
+----------------------------------------------------
+
+1. Diagnose a badly-performing cell (with reference values)
+
+    python spring_implementation/diagnose_cell.py --tif "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample3_3_11.tif" --ref-pc 16.95 --ref-cond 1361.65 --ref-dil 80.33 --output spring_implementation/outputs/diagnostics/diagnose_Sample3_3_11
+
+2. Diagnose without reference (just inspect masks and densities)
+
+    python spring_implementation/diagnose_cell.py --tif "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample2_5_5.tif"
+
+3. CPU-only
+
+    python spring_implementation/diagnose_cell.py --tif "C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI/20240516_JABr_40uMDFHBI_20-40_Sample3_3_11.tif" --ref-pc 16.95 --no-gpu
+
+
+====================================================
+  REGENERATING SLIDE FIGURES
+====================================================
 
 After a pipeline run, update slide_08_pc_method.png with:
 
-    python spring_implementation/make_slide_08.py
+    python spring_implementation/slides/make_slide_08.py
 
-This reads spring_implementation/outputs/summary.csv automatically,
-so the PC value always reflects the most recent pipeline run.
-
-
-----------------------------------------------------
-PIPELINE STEPS (what it does internally)
-----------------------------------------------------
-
-  [1/6] Load          Read condensate + nuclei TIF stacks
-  [2/6] Denoise       Cellpose 3 DenoiseModel (denoise_cyto3) on each channel
-  [3/6] Segment       Cellpose 3 (cyto3, do_3D=True) -- condensates and nuclei
-  [4/6] Measure       Per-slice regionprops (area, centroid, mean_intensity)
-  [5/6] Volume        Sum voxels per 3D label -> volume_voxels [+ volume_um3]
-  [6/6] PC            Fabrini et al. method:
-                        B = min voxel intensity across full FOV
-                        cond_density = mean clip(pixel-B, 0) over nuclear condensate voxels
-                        dilute_density = mean clip(pixel-B, 0) over a 10x10x10
-                                         patch in the nuclear dilute phase
-                        PC = cond_density / dilute_density
+Note: make_slide_08.py reads from spring_implementation/outputs/summary.csv.
+If you used --output to a custom directory, update the OUTPUTS path
+at the top of make_slide_08.py before running.
 
 
-----------------------------------------------------
-BEST-KNOWN SETTINGS  (JABr ROI dataset, as of 2026-04-29)
-----------------------------------------------------
+====================================================
+  OUTPUT DIRECTORY LAYOUT
+====================================================
 
-  Model:          cyto3 (condensates and nuclei)
-  do_3D:          True
-  --diameter:     None (auto-detect)
-  --nuc-diameter: None (auto-detect)
-  --nuc-cellprob: -2.0
-
-  Result: PC = 6.048  (reference = 6.32, error = -4.3%)
-          186 condensates, 76 nuclei detected across 55 Z-slices
+  spring_implementation/outputs/
+  ├── roi_sample/          Single-image pipeline run (original JABr ROI)
+  ├── batch_JABr_final/    Best batch run (central nuc + top-75%)
+  ├── experiments/         Intermediate batch iterations (kept for reference)
+  │   ├── batch_JABr/
+  │   ├── batch_JABr_original/
+  │   ├── batch_JABr_largestnuc/
+  │   ├── batch_JABr_central/
+  │   └── batch_JABr_overlap/
+  └── diagnostics/
+      ├── diagnose_Sample2_5_5/
+      ├── diagnose_Sample3_3_11/
+      └── sweep_topx_JABr/
