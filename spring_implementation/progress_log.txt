@@ -521,3 +521,10 @@ THREE IMPROVEMENTS THAT BROUGHT PC FROM ~3.3 TO 6.297
      and average the 50 quietest. This is deterministic, stable, and
      matches how a researcher manually selects a quiet representative
      background spot.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TODO (2026-05-05)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Add discussion slides to presentation.
+  - Add applicability of condensates slide to the introduction section.
