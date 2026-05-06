@@ -522,9 +522,197 @@ THREE IMPROVEMENTS THAT BROUGHT PC FROM ~3.3 TO 6.297
      matches how a researcher manually selects a quiet representative
      background spot.
 
+----------------------------------------------------
+2026-05-05  Batch Cross-Reference vs Manual Reference (JABr, 30 cells)
+----------------------------------------------------
+
+CONTEXT
+  The pipeline had been validated on one hand-picked ROI (Sample2_5_1,
+  PC=6.297 vs reference 6.32, -0.4% error). The next step was to test
+  it across all 30 JABr cells for which Imaris/manual reference PCs
+  exist in Box (JABr_Partition coefficient_nuclear.csv).
+
+DATA STRUCTURE DISCOVERY
+  Manual reference data lives in Box:
+    C:\Users\Danie\Box\Condensate Volume Quantification\JABr\
+  Key subfolders:
+    Cut ROI\           ← multi-channel TIF per cell, shape (Z, 2, Y, X)
+                          ch0 = nuclei (C1), ch1 = condensate (C2)
+    JABr_Partition coefficient_nuclear.csv   ← reference PC per cell
+    JABr_Partition coefficient_cytoplasmic.csv
+
+  The filenames in the CSV match the Cut ROI TIF names exactly, so
+  joining on filename is straightforward. We use nuclear PC only.
+
+INFRASTRUCTURE BUILT
+  Three new scripts added to spring_implementation/:
+
+  1. batch_compare.py
+     Loops over all Cut ROI TIFs for a construct, runs the pipeline on
+     each, joins against the nuclear reference CSV, and outputs:
+       comparison.csv  (one row per cell: ref PC, pipeline PC, error %)
+       scatter.png     (pipeline vs reference, annotated with r/RMSE)
+     Models initialized once and reused across all cells.
+     CLI flags: --construct-dir, --output, --nuc-cellprob, --cond-topx,
+                --all-nuclei, --no-gpu
+
+  2. batch_sweep_topx.py
+     Same segmentation pass as batch_compare, but computes cond_density
+     using top-10%, 20%, 25%, 30%, 40%, 50%, 75%, and full mean — all
+     from the same masks — to find the optimal top-X% trim.
+     Outputs: sweep.csv, summary.csv, sweep_plot.png
+
+  3. diagnose_cell.py
+     Runs the pipeline on one TIF and dumps a deep diagnostic:
+       raw_midZ.png       mid-Z raw channels
+       mask_overlay.png   condensate mask + nucleus overlay on raw image
+       intensity_hist.png pixel intensity distribution inside mask vs dilute
+       summary.txt        density variants (mean, top-50%, top-25%, peak)
+                          + mask coverage stats
+
+  pipeline.py also extended:
+    --roi <path>      Accept multi-channel (Z, 2, Y, X) TIF directly;
+                      splits ch0=nuc, ch1=cond internally. Replaces need
+                      for pre-split C1/C2 files when using Box data.
+    --cond-topx <X>   Use mean of top-X% brightest voxels in the
+                      condensate mask for cond_density. Default: 75.
+
+NUCLEUS SELECTION EXPERIMENTS
+  Each Cut ROI is nominally a single-cell crop but often contains
+  fragments of neighboring cells. Cellpose detects multiple nuclei per
+  image. The reference PC was computed per cell (one specific nucleus),
+  so pooling all nuclei gives a field-average PC, not per-cell PC.
+
+  Five approaches tested across all 30 JABr cells:
+
+  Approach                           r      RMSE   mean bias
+  ─────────────────────────────────────────────────────────────
+  All nuclei pooled (original)     0.681   3.250    -13.4%
+  Largest nucleus only             0.645   3.298     -9.4%   (worse)
+  Central nucleus (closest to      0.716   3.248    -16.0%
+    image XY center)
+  Central nucleus + top-75%        0.735   2.815     +2.8%  <- BEST
+  Max-overlap nucleus + top-75%    0.708   3.024     +2.1%
+
+  Central nucleus rationale: Cut ROIs are cropped around the target
+  cell, so the nucleus closest to the XY center of the stack is almost
+  always the cell of interest.
+
+  Max-overlap nucleus rationale: pick the nucleus with the most
+  condensate-mask voxels overlapping it — directly identifies the cell
+  containing visible condensates. Only changed 5/30 cells vs central:
+    1 big win  (Sample1_4_2: -57% → -17%)
+    2 big losses (Sample3_3_3: -1% → +44%; Sample3_3_4: -24% → -51%)
+  Net aggregate slightly worse; reverted to central as default.
+
+  CURRENT DEFAULT: central nucleus + top-75%.
+
+TOP-X% CONDENSATE DENSITY FIX
+  PROBLEM IDENTIFIED (diagnostic on Sample3_3_11, ref PC=16.95):
+    Pipeline cond density:  466   (pipeline PC = 8.32)
+    Reference cond density: 1362  (reference PC = 16.95)
+
+    Cellpose 3 do_3D=True draws inflated object boundaries around each
+    condensate — the mask includes the bright core PLUS a large dim halo
+    and dark interior pixels. The mask_overlay.png confirmed this:
+    large dark regions were highlighted as "condensate".
+
+    Density variants inside the mask (background-subtracted):
+      Mean (CURRENT)         : 466   <- pipeline value
+      Top 50% brightest      : 809
+      Top 25% brightest      : 1300  <- matches reference 1362
+      Top 10% brightest      : 2009
+
+    The reference (Imaris) used tighter manually-drawn boundaries that
+    captured only bright cores. Taking the top-25% brightest pixels in
+    the pipeline's larger mask recovers approximately the same content
+    as a tight manual mask.
+
+  SWEEP RESULTS (top-X% across 29 JABr cells):
+    Variant    r       RMSE    mean bias
+    top10    0.912   13.095   +119.8%  <- best correlation, huge bias
+    top25    0.865    8.166    +75.0%
+    top50    0.783    3.929    +29.9%
+    top75    0.735    2.815     +2.8%  <- best calibration
+    full     0.716    3.248    -16.0%
+
+    top-10% has the highest correlation (r=0.912) — the bright cores of
+    Cellpose masks rank-correlate extremely well with the manual reference.
+    But absolute values are inflated 2× so it cannot be used directly.
+
+    top-75% delivers near-zero bias and the best RMSE. Interpretation:
+    Cellpose adds ~25% "fluff" beyond what a manual boundary would draw;
+    trimming the bottom 25% of mask voxels removes it.
+
+  IMPLEMENTATION:
+    compute_partition_coefficient() now takes cond_topx=75 (default).
+    Sorts B-subtracted cond voxels by intensity, takes mean of the
+    top-X% brightest. pipeline.py exposes --cond-topx CLI arg.
+    batch_compare.py passes --cond-topx 100 --all-nuclei to reproduce
+    the original pipeline behavior for comparison.
+
+PER-CELL CROSS-REFERENCE RESULTS (final: central nuc + top-75%)
+  Cells processed : 29  (Sample3_3_15 NaN — no cond overlap in nucleus)
+  Pearson r       : 0.735
+  RMSE            : 2.815
+  Mean error      : +2.8%
+
+  Well-calibrated cells (error < 5%):
+    Sample1_1_3   ref=19.77  pipe=19.90   +0.7%
+    Sample3_3_3   ref=8.82   pipe=8.74    -1.0%
+    Sample3_3_7   ref=8.68   pipe=8.55    -1.5%
+    Sample3_3_1   ref=8.18   pipe=8.31    +1.5%
+    Sample1_4_1   ref=6.13   pipe=6.20    +1.1%
+    Sample3_3_9   ref=5.92   pipe=6.13    +3.6%
+    Sample1_4_3   ref=13.96  pipe=13.04   -6.6%
+
+  Known outliers with segmentation failures:
+    Sample1_1_1   ref=4.78   pipe=11.77  +146%  (wrong cell selected)
+    Sample3_3_2   ref=9.05   pipe=4.47    -51%  (missed nucleus)
+    Sample3_3_11  ref=16.95  pipe=10.57   -38%  (bright cores undersampled)
+    Sample2_5_5   ref=6.73   pipe=4.20    -38%  (nucleus detection missed
+                                                  target cell; wide FOV)
+
+DIAGNOSTIC ON SAMPLE2_5_5 (wrong-cell failure)
+  FOV is unusually large (32×417×370 vs typical 45×130×127).
+  Opened in Fiji for visual inspection: the bright condensate cluster
+  is in the lower-right of the field; our central nucleus sits in the
+  upper-left. Cellpose never detected a nucleus near the bright
+  condensate — that cell's nucleus was missed entirely. Neither central
+  nor max-overlap heuristics can fix a nucleus that was never segmented.
+  Root cause: nucleus segmentation failure on wide multi-cell fields.
+
+OUTSTANDING ISSUES
+  - Sample3_3_15 returns NaN: central nucleus has zero condensate
+    overlap. A fallback (e.g. largest nucleus) would at least yield a
+    value, but the root cause is segmentation.
+  - ~6 cells with > 30% error: trace to nucleus segmentation failures
+    (wrong cell, missed nucleus, fragmented mask), not calibration.
+  - top-75% over-corrects on cells where Cellpose already drew tight
+    masks (Sample2_5_1 was +4.5% with full mean, +38% with top-75%).
+    No single top-X% value is optimal for all cells — would require
+    per-cell mask quality assessment to tune adaptively.
+
+DIRECTORY REORGANIZATION
+  spring_implementation/outputs/ restructured:
+    roi_sample/       <- original single-ROI pipeline run
+    batch_JABr_final/ <- best batch run (central nuc + top-75%)
+    experiments/      <- all intermediate batch iterations
+    diagnostics/      <- cell diagnostics and sweep outputs
+
+REFERENCE UPDATED
+  spring_implementation/reference/pipeline_tutorial.txt rewritten to
+  cover all four scripts with full option lists and examples.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TODO (2026-05-05)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   - Add discussion slides to presentation.
   - Add applicability of condensates slide to the introduction section.
+  - Run batch_compare on other constructs (JwtBr, 10ntABr, etc.) to
+    test generalizability of top-75% calibration.
+  - Fix Sample3_3_15 NaN: add fallback nucleus selection when central
+    nucleus has zero condensate overlap.
+  - Investigate whether better nuclei segmentation (custom model or
+    2D+stitch approach) would fix the remaining outlier cells.
