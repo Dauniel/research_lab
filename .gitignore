@@ -1,77 +1,29 @@
-# =========================
 # Environments
-# =========================
 csbio-venv/
 venv/
 .env/
 
-# =========================
 # Python
-# =========================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# =========================
 # Jupyter
-# =========================
 .ipynb_checkpoints/
 
-# =========================
 # macOS
-# =========================
 .DS_Store
-.DS_Store?
 ._*
 
-# =========================
-# R
-# =========================
-.Rhistory
-.RData
-.Rproj.user/
-
-# =========================
-# Data (raw + large files)
-# =========================
-tutorial/
-
-# Image formats — block all by default, allow ROI files explicitly
+# Large data files
 *.tif
 *.tiff
 *.ome
 *.ome.tif
+*.npy
 
-# Allow small ROI stacks used by the pipeline (full stacks are ~340 MB each)
+# Allow small ROI stacks used by the pipeline
 !data/raw_condensates/C2-ROI_raw_stack_sample2_5.tif
 !data/raw_nuclei/C1-ROI_raw_stack_sample2_5.tif
 !data/ROI/roi_sample2_5_1..tif
-
-# Numpy / arrays
-*.npy
-
-# =========================
-# Outputs
-# =========================
-outputs/*
-
-# Allow specific output folder
-!outputs/cellpose_python/
-!outputs/cellpose_python/**
-
-# CSVs (still ignored globally EXCEPT above folder due to override)
-*.csv
-
-# =========================
-# Cellpose / segmentation artifacts
-# =========================
-*_cp_masks.tif
-*_masks.tif
-
-
-# =========================
-# Misc
-# =========================
-*.log
-*.tmp

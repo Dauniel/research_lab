@@ -67,18 +67,57 @@ def parse_args():
 def load_stacks(cond_path: Path | None, nuc_path: Path | None, roi_path: Path | None = None):
     """Load condensate and nuclei Z-stacks from TIF files.
 
-    Accepts either a single multi-channel ROI TIF (Z, 2, Y, X) via roi_path,
-    or separate cond_path and nuc_path stacks.
+    Accepts either:
+      - A single multi-channel TIF via roi_path (OME or plain).
+        Handles any axis order (CZYX, ZCYX, TCZYX, etc.) by reading OME
+        metadata when available. Ch0 = nuclei, Ch1 = condensate.
+      - Separate single-channel TIFs via cond_path + nuc_path.
     """
     if roi_path is not None:
-        roi = tiff.imread(roi_path)
-        if roi.ndim != 4 or roi.shape[1] != 2:
-            raise ValueError(f"Expected (Z, 2, Y, X) ROI TIF, got shape {roi.shape}")
-        nuc_stack  = roi[:, 0, :, :].copy()
-        cond_stack = roi[:, 1, :, :].copy()
+        with tiff.TiffFile(roi_path) as tf:
+            if tf.is_ome and tf.series:
+                data = tf.series[0].asarray()
+                axes = tf.series[0].axes.upper()
+                print(f"  OME-TIFF detected  axes={axes}  shape={data.shape}")
+            else:
+                data = tf.asarray()
+                axes = None
+
+        # Normalise to (C, Z, Y, X)
+        if axes is not None:
+            if 'T' in axes:                        # drop time axis (first T)
+                data = data.take(0, axis=axes.index('T'))
+                axes = axes.replace('T', '')
+            if 'C' not in axes:
+                raise ValueError(f"No channel axis found in OME axes '{axes}'")
+            if axes.index('C') != 0:               # bring C to front
+                data = np.moveaxis(data, axes.index('C'), 0)
+                axes = 'C' + axes.replace('C', '')
+        else:
+            # Plain TIF: infer channel axis from shape
+            if data.ndim == 4:
+                # (Z, C, Y, X) → move C to front
+                if data.shape[1] == 2:
+                    data = np.moveaxis(data, 1, 0)
+                elif data.shape[0] == 2:
+                    pass  # already (C, Z, Y, X)
+                else:
+                    raise ValueError(
+                        f"Cannot find channel axis in shape {data.shape}. "
+                        "Expected 2 channels."
+                    )
+            else:
+                raise ValueError(f"Expected 4-D array for --roi, got shape {data.shape}")
+
+        if data.shape[0] < 2:
+            raise ValueError(f"Expected ≥2 channels, got {data.shape[0]}")
+
+        nuc_stack  = data[0].copy()   # Ch0 = nuclei
+        cond_stack = data[1].copy()   # Ch1 = condensate
     else:
         cond_stack = tiff.imread(cond_path)
         nuc_stack  = tiff.imread(nuc_path)
+
     print(f"Condensate stack : {cond_stack.shape}  dtype={cond_stack.dtype}")
     print(f"Nuclei stack     : {nuc_stack.shape}  dtype={nuc_stack.dtype}")
     return cond_stack, nuc_stack
