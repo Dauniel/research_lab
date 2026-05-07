@@ -714,5 +714,97 @@ TODO (2026-05-05)
     test generalizability of top-75% calibration.
   - Fix Sample3_3_15 NaN: add fallback nucleus selection when central
     nucleus has zero condensate overlap.
+
+----------------------------------------------------
+2026-05-07  PI Meeting Prep + GUI + Laptop Validation
+----------------------------------------------------
+
+MEETING PREP
+  PI meeting with Elisa Franco (first since 2026-04-22).
+  Created meeting materials in spring_implementation/slides/meetings/:
+    meeting_prep_2026-05-07.md   <- structured agenda and discussion questions
+    meeting_slides_2026-05-07.pptx <- 9-slide deck (white theme):
+      slide 1: title
+      slide 2: overview of everything since April 22
+      slide 3: pipeline overview (all 6 steps)
+      slide 4: single-ROI validation (PC = 6.297 vs ref 6.32)
+      slide 5: top-75% fix and sweep table
+      slide 6: batch results (r=0.735, RMSE=2.815, bias=+2.8%)
+      slide 7: per-cell comparison table (ref vs top-75%, 12 cells)
+      slide 8: outstanding issues
+      slide 9: discussion and next steps
+    notes_5_7.md / notes_5_7.pdf <- plain-language pipeline explainer
+      covering all 6 steps, why each matters, and biological interpretation
+
+SLIDES REORGANIZATION
+  spring_implementation/slides/ restructured:
+    week5/     <- existing week 5 presentation assets (PDFs, PNGs, scripts)
+    meetings/  <- PI meeting materials (date-stamped per meeting)
+
+PIPELINE IMPROVEMENTS (pipeline.py)
+  1. OME-TIFF multi-channel support
+     load_stacks() now reads OME metadata (tf.series[0].axes) and handles
+     any axis order (CZYX, ZCYX, TCZYX, etc.) before splitting ch0=nuclei,
+     ch1=condensate. Previously only worked for (Z, 2, Y, X) plain TIFs.
+
+  2. Matplotlib thread safety
+     matplotlib.use("Agg") set inside the GUI worker thread to prevent
+     the "Starting Matplotlib GUI outside main thread" warning/crash.
+
+TKINTER GUI (run_gui.py)
+  Built spring_implementation/run_gui.py — a point-and-click interface
+  for lab members not familiar with the command line.
+
+  Single File tab:
+    - Input mode toggle: single multi-channel TIF or separate C1/C2 files
+    - Browse buttons for all file/folder inputs
+    - Shared settings: Top-X%, nuclei cellprob, GPU toggle
+    - Live log streams all pipeline output in real time
+    - Done ✓ / error status indicator
+
+  Batch tab:
+    - Browse for a folder of TIF files (processes all .tif files found)
+    - Optional reference CSV input → outputs comparison.csv + scatter.png
+    - Central nucleus selection per cell (same logic as batch_compare.py)
+    - Per-cell output subfolder
+
+  Fixed macOS-specific crash: removed *.ome.tif from filedialog filetypes
+  filter (double-extension pattern causes NSInvalidArgumentException on macOS).
+
+LAPTOP VALIDATION
+  Combined C1 + C2 channel files into data/ROI/sample2_5_1.tif
+  (shape: 55 × 2 × 185 × 259, uint16) for use with --roi flag.
+
+  Ran pipeline on laptop (no GPU, CPU only) via GUI:
+    PC               : 6.611
+    Background (B)   : 76.00
+    Cond. density    : 463.45
+    Dilute density   : 70.11
+    Reference PC     : 6.32
+    Error            : +4.6%
+
+  Slight difference from GPU run (6.297) is expected — Cellpose has minor
+  non-determinism in 3D mode across runs even on identical data, not a
+  GPU/CPU difference.
+
+DEPENDENCY NOTES
+  System Python (/Library/Frameworks/Python 3.12) required these upgrades
+  to run the pipeline on the laptop:
+    numpy 2.4.4, pandas 3.0.2, matplotlib 3.10.9, scikit-image 0.26.0,
+    tifffile 2026.5.2, cellpose 3.1.1 (cellpose 4.x has a CPnet bug)
+  cellpose 4.1.1 was installed but has NameError: CPnet not defined in
+  denoise module — downgraded to 3.1.1 which is the validated version.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TODO (2026-05-07)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Run batch_compare on other constructs (JwtBr, 10ntABr, etc.) to
+    test generalizability of top-75% calibration.
+  - Fix Sample3_3_15 NaN: add fallback nucleus selection when central
+    nucleus has zero condensate overlap.
+  - Add discussion + applicability of condensates slides to presentation.
+  - Confirm top-75% is defensible method to report in paper (discuss with PI).
+  - Commit batch output CSVs from GPU PC once accessible.
   - Investigate whether better nuclei segmentation (custom model or
     2D+stitch approach) would fix the remaining outlier cells.
