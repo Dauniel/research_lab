@@ -1,0 +1,142 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{fontenc}
+\usepackage{inputenc}
+
+% ── Palette ───────────────────────────────────────────────────────────────────
+\definecolor{accent}{HTML}{1A73E8}
+\definecolor{accent2}{HTML}{18965C}
+\definecolor{lightgray}{HTML}{555555}
+\definecolor{codefill}{HTML}{F1F3F4}
+\definecolor{rulegray}{HTML}{CCCCCC}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\color{rulegray}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{accent2}}{}{0em}{}
+\titlespacing{\section}{0pt}{16pt}{6pt}
+\titlespacing{\subsection}{0pt}{10pt}{3pt}
+
+% ── Code/formula box ──────────────────────────────────────────────────────────
+\newenvironment{codebox}{%
+  \vspace{6pt}\par
+  \noindent\hspace{1cm}%
+}{%
+  \par\vspace{6pt}%
+}
+
+% ── Header / footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{lightgray}Pipeline Notes}
+\fancyhead[R]{\small\color{lightgray}May 7, 2026}
+\fancyfoot[C]{\small\color{lightgray}\thepage}
+
+\begin{document}
+
+% ── Title ─────────────────────────────────────────────────────────────────────
+{\LARGE\bfseries\color{accent} Pipeline Notes}\par
+{\large\color{lightgray} May 7, 2026 \ $\cdot$\ Daniel Chang\ $\cdot$\ Franco Lab}
+\vspace{4pt}
+\color{rulegray}\rule{\linewidth}{1.2pt}\color{black}
+\vspace{8pt}
+
+% ── Big picture ───────────────────────────────────────────────────────────────
+\section*{The Big Picture}
+
+The pipeline answers one question: \textbf{how much more concentrated is a protein inside a condensate compared to the surrounding nucleus?} That ratio is the Partition Coefficient (PC). To compute it you need to know \textit{where} the condensates are and \textit{where} the nucleus is --- that's what the pipeline figures out automatically.
+
+% ── Steps ─────────────────────────────────────────────────────────────────────
+\section*{Step-by-Step}
+
+\subsection*{1.\ \ Load}
+Two 3D image stacks are read in from TIF files:
+\begin{itemize}
+  \item \textbf{Ch1} --- the nuclei channel (fluorescent signal from the nucleus)
+  \item \textbf{Ch2} --- the condensate channel (fluorescent signal from the protein of interest)
+\end{itemize}
+Each stack is 55 Z-slices $\times$ 185 $\times$ 259 pixels. Think of it as a 3D block of pixels, like a loaf of bread sliced 55 times.
+
+\subsection*{2.\ \ Denoise}
+Before trying to find any boundaries, every Z-slice gets run through Cellpose's denoising model. This sharpens edges and suppresses shot noise so the segmentation model can draw tighter, more accurate boundaries.
+
+\textbf{Key point:} the denoised image is thrown away after this step. It is only used to guide \textit{where} the boundaries go --- never to measure intensity values.
+
+\subsection*{3.\ \ Segment}
+Cellpose 3 (cyto3 model, \texttt{do\_3D=True}) processes the full 3D stack --- not slice by slice, but all 55 slices simultaneously. This means it tracks the same object consistently across Z rather than redrawing boundaries independently on each slice.
+
+The output is two sets of \textbf{masks}:
+\begin{itemize}
+  \item \textbf{Condensate masks} --- each condensate gets a unique integer label. Every pixel inside condensate \#1 is labeled 1, condensate \#2 is labeled 2, and so on.
+  \item \textbf{Nuclei masks} --- same idea for nuclei.
+\end{itemize}
+
+After segmentation, the nuclei masks go through one extra step: Cellpose tends to split each nucleus into 15--25 fragments because of internal texture (the condensates inside the nucleus confuse it). To fix this, the binary mask (any pixel labeled $> 0$ = ``inside a nucleus'') is run through 3D connected-component analysis. This collapses all the fragments back into the true connected regions --- 76 Cellpose labels become 5 clean nuclei.
+
+\subsection*{4.\ \ Measure}
+Using the masks as selection tools on the original raw image, \texttt{regionprops} extracts per-object measurements for every Z-slice: area, centroid, and mean intensity.
+
+\subsection*{5.\ \ 3D Volume}
+Counts how many voxels (3D pixels) each labeled object occupies across all 55 slices. This gives a true 3D volume estimate for each condensate and nucleus rather than just a per-slice area.
+
+\subsection*{6.\ \ Partition Coefficient}
+
+This is where the masks are used to select pixels from the \textbf{raw image} (Ch2, the condensate channel).
+
+\textbf{Background ($B$)} \\
+Find the minimum pixel value across the entire 3D stack. This is the camera/autofluorescence floor --- a baseline offset that has nothing to do with the protein. It gets subtracted from every pixel before any density is computed.
+
+\textbf{Condensate density}
+\begin{itemize}
+  \item Take all pixels inside \textit{both} a condensate mask \textit{and} a nucleus mask
+  \item Subtract $B$ from each, clip to 0
+  \item Sort by intensity, keep only the top 75\% brightest
+  \item Take the mean
+\end{itemize}
+The top-75\% trim is important: Cellpose draws slightly inflated boundaries that include a dim halo around the true bright core. Trimming the dimmest 25\% of mask pixels recovers approximately what a researcher would have drawn by hand.
+
+\textbf{Dilute density}
+\begin{itemize}
+  \item Take all pixels inside a nucleus mask but \textit{outside} any condensate mask --- this is the quiet nuclear background
+  \item Find all valid $10{\times}10{\times}10$ voxel patches that fit entirely within this region (${\sim}88{,}000$ patches)
+  \item Sort by mean intensity, take the 50 lowest-intensity patches
+  \item Average them
+\end{itemize}
+The lowest-50-patch approach mimics how a researcher manually picks a quiet, representative background spot. Using a single random patch was unstable (PC would swing from 4.3 to 6.0 depending on where it landed).
+
+\textbf{PC formula}
+\begin{codebox}
+\texttt{PC = condensate\_density / dilute\_density}
+\end{codebox}
+Interpretation: how many times brighter are condensates than the surrounding nuclear background, after removing the camera offset.
+
+% ── Why each step matters ─────────────────────────────────────────────────────
+\section*{Why Each Step Matters}
+
+\vspace{4pt}
+\begin{tabular}{>{\bfseries}p{4.5cm} p{10cm}}
+\toprule
+Step & What would break without it \\
+\midrule
+Denoising & Blurry boundaries $\to$ masks include too much dim halo $\to$ PC underestimated \\[4pt]
+do\_3D=True & Slice-by-slice segmentation gives inconsistent boundaries across Z $\to$ noisy intensity measurements \\[4pt]
+CC nuclei fix & Fragmented nucleus labels leave gaps $\to$ condensates in gaps excluded from PC \\[4pt]
+Background subtraction & PC systematically lower than reference (reference always subtracts $B$) \\[4pt]
+Top-75\% trim & Cellpose halos drag cond\_density down $\to$ PC underestimated vs.\ manual reference \\[4pt]
+Lowest-50-patch dilute & Single random patch is seed-dependent $\to$ PC swings $\pm$30\% across runs \\
+\bottomrule
+\end{tabular}
+
+% ── Biological meaning ────────────────────────────────────────────────────────
+\section*{What PC Means Biologically}
+
+A PC of 1.0 means the protein is equally distributed inside condensates and in the surrounding nucleus --- no enrichment. A PC of 6.3 (our result, matching the manual reference) means the protein is ${\sim}6\times$ more concentrated inside the condensate than in the nuclear background. Higher PC = tighter, more selective condensate.
+
+\end{document}
