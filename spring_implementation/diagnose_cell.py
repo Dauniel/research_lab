@@ -25,7 +25,7 @@ from cellpose import models, core, denoise as cp_denoise
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pipeline import denoise_stack, segment_condensates, segment_nuclei
-from batch_compare import central_nucleus_only
+from batch_compare import central_nucleus_only, max_overlap_nucleus
 
 
 def parse_args():
@@ -35,6 +35,8 @@ def parse_args():
     p.add_argument("--ref-pc",   default=None,  type=float)
     p.add_argument("--ref-cond", default=None,  type=float)
     p.add_argument("--ref-dil",  default=None,  type=float)
+    p.add_argument("--nucleus-method", default="central", choices=["central", "max-overlap"],
+                   help="Nucleus selection: 'central' (closest to FOV center) or 'max-overlap' (most cond overlap)")
     p.add_argument("--no-gpu",   action="store_true")
     return p.parse_args()
 
@@ -60,7 +62,11 @@ def main():
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
     cond_masks    = segment_condensates(cond_restored, seg_model, diameter=None)
     nuc_masks     = segment_nuclei(nuc_restored, seg_model, diameter=None, cellprob_threshold=-2.0)
-    nuc_masks     = central_nucleus_only(nuc_masks)
+
+    if args.nucleus_method == "max-overlap":
+        nuc_masks = max_overlap_nucleus(nuc_masks, cond_masks)
+    else:
+        nuc_masks = central_nucleus_only(nuc_masks)
 
     cond_3d = cond_masks > 0
     nuc_3d  = nuc_masks  > 0

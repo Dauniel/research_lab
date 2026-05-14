@@ -118,7 +118,7 @@ def run_one(tif_path: Path, dn_model, seg_model, nuc_cellprob: float,
     cond_masks = segment_condensates(cond_restored, seg_model, diameter=None)
     nuc_masks  = segment_nuclei(nuc_restored, seg_model, diameter=None, cellprob_threshold=nuc_cellprob)
     if not all_nuclei:
-        nuc_masks = central_nucleus_only(nuc_masks)
+        nuc_masks = max_overlap_nucleus(nuc_masks, cond_masks)
 
     return compute_partition_coefficient(cond_stack, cond_masks, nuc_masks, cond_topx=cond_topx)
 
