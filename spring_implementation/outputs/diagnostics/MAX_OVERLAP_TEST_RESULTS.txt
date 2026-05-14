@@ -1,0 +1,99 @@
+========================================
+MAX-OVERLAP NUCLEUS HEURISTIC TEST
+========================================
+
+Tested the max-overlap nucleus selection method (pick nucleus with MOST 
+condensate-mask overlap) on all 5 bad cases. Results:
+
+════════════════════════════════════════════════════════════════════
+
+CASE 1: Sample1_1_1 (ref=4.78, pipeline=11.77, +146% error)
+────────────────────────────────────────────────────────────────────
+Central nucleus:     label 1 (23 pixels from center)
+Max-overlap nucleus: label 1 (2831 voxels overlap)
+
+Result: NO CHANGE — nucleus selection was correct.
+Conclusion: Issue is NOT nucleus selection. It's mask tightness.
+            The Cellpose mask includes dim halos that inflate densities.
+
+════════════════════════════════════════════════════════════════════
+
+CASE 2: Sample3_3_2 (ref=9.05, pipeline=4.47, -51% error)
+────────────────────────────────────────────────────────────────────
+Central nucleus:     label 1 (6.4 pixels from center)
+Max-overlap nucleus: label 1 (27,878 voxels overlap)
+
+Result: NO CHANGE — nucleus selection was correct.
+Conclusion: max-overlap agrees with central. The low PC is not from
+            nucleus selection but from the mask or trimming parameters.
+
+════════════════════════════════════════════════════════════════════
+
+CASE 3: Sample3_3_11 (ref=16.95, pipeline=10.57, -38% error)
+────────────────────────────────────────────────────────────────────
+Central nucleus:     label 1 (11.8 pixels from center)
+Max-overlap nucleus: label 1 (57,116 voxels overlap)
+
+Result: NO CHANGE — nucleus selection was correct.
+Conclusion: This case needs adaptive trimming (top-25% instead of top-75%)
+            to match the reference. Nucleus selection is fine.
+
+════════════════════════════════════════════════════════════════════
+
+CASE 4: Sample2_5_5 (ref=6.73, pipeline=4.20, -38% error)
+────────────────────────────────────────────────────────────────────
+Central nucleus:     label 2 (102.5 pixels from center) [VERY FAR]
+Max-overlap nucleus: label 2 (17,826 voxels overlap)
+
+Result: NO CHANGE — both methods select the same nucleus.
+Conclusion: While the nucleus is far from center (102.5px), it IS the
+            nucleus with the most condensate overlap. So the nucleus
+            selection is technically correct, but the pipeline still
+            underestimates PC (196.1 vs 497.0 cond density).
+            Root cause: mask tightness or wrong nucleus truly selected.
+
+════════════════════════════════════════════════════════════════════
+
+CASE 5: Sample3_3_15 (ref=6.41, NaN error)
+────────────────────────────────────────────────────────────────────
+Central nucleus:     label 4 (48.8 pixels from center, 0 voxels overlap)
+Max-overlap nucleus: label 8 (180 voxels overlap) ← CHANGE!
+
+Result: NUCLEUS CHANGED
+Cond & nucleus overlap: 0 → 180 voxels
+Cond density:          NaN → 56.9
+
+Conclusion: ✓ FIXED! The NaN is resolved. Max-overlap selects a nucleus
+            with actual condensate overlap, allowing PC computation.
+            (Note: PC would be 56.9 / dilute_dens; dilute looks reasonable)
+
+════════════════════════════════════════════════════════════════════
+
+SUMMARY
+════════════════════════════════════════════════════════════════════
+
+Max-overlap nucleus fixes:         Case 5 (NaN) ✓
+Max-overlap nucleus doesn't fix:   Cases 1, 2, 3, 4 (nucleus was already correct)
+
+Root causes for remaining failures:
+  • Sample1_1_1  — Mask too loose (cond dens 550 >> ref 390) 
+  • Sample3_3_2  — Condensates missing or mask loose (cond dens 231 << ref 633)
+  • Sample3_3_11 — Needs adaptive trimming (top-25% instead of top-75%)
+  • Sample2_5_5  — Nucleus selection correct but still underestimates cond
+                   (likely mask issue)
+
+════════════════════════════════════════════════════════════════════
+
+RECOMMENDATION
+════════════════════════════════════════════════════════════════════
+
+Implement max-overlap nucleus heuristic in batch_compare.py:
+  1. Fixes Case 5 (NaN issue)
+  2. Provides clearer nucleus selection for wide FOVs
+  3. Doesn't hurt Cases 1-4 (nucleus was already correct)
+
+Then address remaining failures separately:
+  • Investigate whether Cellpose parameters can tighten masks
+  • Implement adaptive top-X% trimming for high-density cells
+  • Consider mask post-processing (morphological operations)
+

@@ -1,0 +1,182 @@
+========================================
+BAD CASE ANALYSIS SUMMARY
+========================================
+
+5 outlier cases identified in batch processing across 29 JABr cells.
+Ran diagnostic pipeline on each to understand segmentation failures.
+
+────────────────────────────────────────────────────────────────────
+
+CASE 1: Sample1_1_1 (ref=4.78, pipeline=11.77, +146% error — WRONG CELL)
+────────────────────────────────────────────────────────────────────
+
+Root Cause: CENTRAL NUCLEUS HEURISTIC + MASK TOO LOOSE
+  - Central nucleus selected but may not be the intended cell
+  - Condensate mask is too loose (includes faint halos)
+  - Pipeline cond density: 550.4 (reference: 390.42)
+  - There are very bright pixels (peak 1214) in the dilute region
+    that should be in a condensate mask, suggesting:
+    a) Wrong nucleus selected, OR
+    b) Cellpose mask boundaries are too loose
+
+Diagnostic Observations:
+  - FOV: 47 × 161 × 176 (normal size)
+  - Central nucleus: label 1 (23 pixels from center) 
+  - 4 nuclei detected after relabeling
+  - Mask mean (550.4) is 40% higher than reference (390.42)
+  - Even top-10% (1016.5) is too high
+  
+Fix Options:
+  1. Switch to max-overlap nucleus heuristic (pick nucleus with most condensate overlap)
+  2. Run analysis on ALL nuclei and see which gives PC closest to reference
+  3. Investigate whether Cellpose is drawing inflated boundaries
+
+────────────────────────────────────────────────────────────────────
+
+CASE 2: Sample3_3_2 (ref=9.05, pipeline=4.47, -51% error — MISSED NUCLEUS)
+────────────────────────────────────────────────────────────────────
+
+Root Cause: WRONG NUCLEUS + CONDENSATES SPREAD ACROSS MULTIPLE NUCLEI
+  - Central nucleus has only SOME of the condensates
+  - Other nuclei in the FOV contain the remaining condensates
+  - Pipeline cond density: 231.5 (reference: 633.55) — 63% too low
+  - Central nucleus has 27,878 voxels of cond & nuc overlap
+    but that's not the complete condensate population
+
+Diagnostic Observations:
+  - FOV: 45 × 135 × 135 (normal size)
+  - Central nucleus: label 1 (6.4 pixels from center)
+  - 4 nuclei detected
+  - Pipeline using only one nucleus; reference may have measured
+    across multiple nuclei or a different nucleus entirely
+  
+Fix Options:
+  1. Switch to max-overlap nucleus heuristic
+  2. If that still gives low PC, analyze ALL nuclei and report per-nucleus stats
+  3. Check whether reference PC was computed on a different nucleus
+
+────────────────────────────────────────────────────────────────────
+
+CASE 3: Sample3_3_11 (ref=16.95, pipeline=10.57, -38% error — BRIGHT CORES UNDERSAMPLED)
+────────────────────────────────────────────────────────────────────
+
+Root Cause: TOP-75% TRIM IS NOT AGGRESSIVE ENOUGH FOR THIS CELL
+  - Cellpose mask has too much "dim filler" for this high-density cell
+  - Pipeline mean (470.3) is too low for high-condensate cells
+  - But top-25% (1314.9) nearly matches the reference (1361.65)!
+  
+Diagnostic Observations:
+  - FOV: 45 × 131 × 127 (normal size)
+  - Central nucleus: label 1 (11.8 pixels from center) ✓ looks correct
+  - Mask has 57,116 voxels of cond & nuc
+  - Intensity distribution shows bimodal:
+    - Bright cores: 1314.9 (top 25%)
+    - Dim halos: 470.3 (mean)
+  - Reference (1361.65) clearly used tight manual boundaries
+  
+Fix Options:
+  1. Use adaptive trimming based on intensity histogram shape (e.g., use top-25% or top-10% 
+     when distribution shows strong bimodality)
+  2. Switch from fixed top-75% to dynamic per-cell selection
+  3. Use peak/mode instead of mean for cells with bright cores
+
+────────────────────────────────────────────────────────────────────
+
+CASE 4: Sample2_5_5 (ref=6.73, pipeline=4.20, -38% error — WIDE FOV, WRONG NUCLEUS)
+────────────────────────────────────────────────────────────────────
+
+Root Cause: CENTRAL NUCLEUS HEURISTIC FAILS ON WIDE FIELDS OF VIEW
+  - FOV is 6.6× wider than typical (32 × 417 × 370 vs ~45 × 130 × 127)
+  - Central nucleus is 102 pixels from the image center — clearly wrong
+  - Bright condensate cluster is in the lower-right; central nucleus is upper-left
+  - Pipeline cond density: 196.1 (reference: 497.0) — measuring from wrong cell
+  
+Diagnostic Observations:
+  - FOV: 32 × 417 × 370 (UNUSUALLY WIDE)
+  - Central nucleus: label 2 (102.5 pixels from center) ✗ far from center
+  - 4 nuclei detected (likely multiple cells in one wide FOV)
+  - Central nucleus has very low cond & nuc overlap (17,826 voxels)
+  - There are 286 total condensate objects detected, but they're spread
+    across multiple nuclei that are far from the image center
+  
+Fix Options:
+  1. Switch to max-overlap nucleus heuristic (pick nucleus with MOST condensate overlap)
+  2. Add FOV size detection: if FOV is >300px in any dimension, skip central heuristic
+  3. For wide FOVs, run per-nucleus analysis and report all results
+
+────────────────────────────────────────────────────────────────────
+
+CASE 5: Sample3_3_15 (NaN — CENTRAL NUCLEUS HAS ZERO CONDENSATE OVERLAP)
+────────────────────────────────────────────────────────────────────
+
+Root Cause: FALLBACK NEEDED WHEN CENTRAL NUCLEUS HAS ZERO OVERLAP
+  - Central nucleus is tiny (0.42% of FOV = 4,947 voxels)
+  - Zero condensates overlap with the central nucleus
+  - 43 condensates detected in the FOV, but in DIFFERENT nuclei
+  - Current code returns NaN when cond & nuc = 0
+  
+Diagnostic Observations:
+  - FOV: 45 × 169 × 155 (normal size)
+  - Central nucleus: label 4 (48.8 pixels from center)
+  - 10 nuclei detected after relabeling
+  - Central nucleus is abnormally small (0.42% of FOV)
+  - Condensates (2.66% of FOV) are in other nuclei
+  - Reference PC was 6.41, so condensates ARE present in the cell
+    — just in the WRONG nucleus
+
+Fix Options:
+  1. Add fallback: if central nucleus has zero condensate overlap, 
+     pick the nucleus with maximum condensate overlap
+  2. Or: pick the largest nucleus as fallback
+  3. Report an error/warning when zero overlap detected
+
+════════════════════════════════════════════════════════════════════════
+
+SUMMARY OF ROOT CAUSES
+════════════════════════════════════════════════════════════════════════
+
+1. NUCLEUS SELECTION (affects 4 of 5 cases: #1, #2, #4, #5)
+   ├─ Central nucleus heuristic fails when:
+   │  ├─ FOV is wide (Sample2_5_5: 102px from center)
+   │  ├─ Target cell is off-center (Sample3_3_15: 49px from center)
+   │  ├─ Central nucleus doesn't contain all condensates (Sample3_3_2)
+   │  └─ [MAYBE] Wrong nucleus selected entirely (Sample1_1_1)
+   │
+   └─ Recommendation: Switch to max-overlap nucleus heuristic
+      (pick the nucleus with the most condensate-mask overlap)
+      
+2. ADAPTIVE TRIMMING (affects 1 case: #3)
+   ├─ Fixed top-75% doesn't work for high-density cells
+   │  └─ Sample3_3_11 needs top-25% (1314.9 vs mean 470.3)
+   │
+   └─ Recommendation: Make trimming adaptive based on intensity histogram
+      (e.g., detect bimodality and use top-25% for strong separation)
+
+3. CELLPOSE MASK QUALITY (affects 1 case: #1)
+   ├─ Masks may be too loose (include faint halos)
+   │  └─ Sample1_1_1: pipeline density (550) >> reference (390)
+   │
+   └─ Recommendation: Investigate whether tighter Cellpose parameters
+      would help, or if the problem is nucleus selection
+
+════════════════════════════════════════════════════════════════════════
+
+IMMEDIATE ACTION ITEMS
+════════════════════════════════════════════════════════════════════════
+
+Priority 1: Fix nucleus selection (fixes ~4 cases)
+  - [ ] Modify batch_compare.py to use max-overlap nucleus heuristic
+  - [ ] Add fallback: if max-overlap has 0 voxels, use largest nucleus
+  - [ ] Test on all 5 bad cases + re-run batch_compare on full 30-cell set
+  
+Priority 2: Add adaptive top-X% trimming (fixes ~1 case, improves others)
+  - [ ] Detect bimodality in intensity distribution
+  - [ ] Use top-25% or top-10% when strong separation detected
+  - [ ] Fall back to top-75% for normal distributions
+  
+Priority 3: Investigate Sample1_1_1 further
+  - [ ] Check if max-overlap heuristic solves it
+  - [ ] If not, verify whether this cell's reference PC is correct
+  - [ ] Visualize all nuclei in this FOV to understand condensate distribution
+
+════════════════════════════════════════════════════════════════════════

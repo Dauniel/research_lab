@@ -97,3 +97,24 @@ Interpretation: how many times brighter are condensates than the surrounding nuc
 
 A PC of 1.0 means the protein is equally distributed inside condensates and in the surrounding nucleus — no enrichment.
 A PC of 6.3 (our result, matching the manual reference) means the protein is ~6× more concentrated inside the condensate than in the nuclear background. Higher PC = tighter, more selective condensate.
+
+---
+
+## Batch Validation Metrics Explained
+
+The batch run across 30 JABr cells reports three numbers: r, RMSE, and bias.
+
+**Pearson r (correlation)**
+Measures how well the pipeline's PC values *track* the reference values — do they go up and down together? r=1.0 is perfect, r=0 is no relationship. r=0.735 means the pipeline ranks cells in roughly the right order (high PC cells are still high, low PC cells are still low), but it's not a tight 1:1 relationship.
+
+**RMSE (Root Mean Square Error)**
+The average size of the error per cell, in the same units as PC. RMSE=2.815 means on average the pipeline is off by ~2.8 PC units per cell. Since the reference PCs range from ~4 to ~20, that's a moderate error — good for most cells, worse for the outliers.
+
+**Bias (+2.8%)**
+The systematic over- or under-estimation averaged across all cells. +2.8% means the pipeline is very slightly over-estimating PC on average — essentially zero systematic error. A large positive bias would mean the pipeline always reads high; a large negative bias would mean it always reads low. The top-75% trim was specifically tuned to get this close to zero (it was −16% before the fix).
+
+| Metric | Value | What it tells you |
+|---|---|---|
+| Pearson r | 0.735 | Does it correlate? (shape of relationship) |
+| RMSE | 2.815 PC units | How far off is it on average? (absolute error) |
+| Bias | +2.8% | Does it consistently over/under-shoot? (systematic offset) |
