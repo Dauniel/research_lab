@@ -808,3 +808,144 @@ TODO (2026-05-07)
   - Commit batch output CSVs from GPU PC once accessible.
   - Investigate whether better nuclei segmentation (custom model or
     2D+stitch approach) would fix the remaining outlier cells.
+
+
+5-7 Elisa's Meeting
+
+debug the bad cases 
+
+samples with just condensates -> perform same analysis 
+either 1 channel or 2 channel
+each channel containing its own set of condensates
+
+also in the GUI, make it so they can run the model on just 1 channel 
+
+in the outputs from the GUI do a side by side output containing the masks and raw image (hopefully a slider for the z-stacks or a max projection)
+----------------------------------------------------
+2026-05-14  Debugging 5 Bad Cases — Max-Overlap Nucleus Test
+----------------------------------------------------
+
+CONTEXT
+  From the 30-cell batch processing with central nucleus heuristic,
+  5 outlier cases were identified with errors ranging from -51% to +146%.
+  Ran diagnostic pipeline on all 5 to understand root causes.
+
+BAD CASES ANALYZED
+  1. Sample1_1_1   (ref=4.78,  pipeline=11.77,  +146%)
+  2. Sample3_3_2   (ref=9.05,  pipeline=4.47,   -51%)
+  3. Sample3_3_11  (ref=16.95, pipeline=10.57,  -38%)
+  4. Sample2_5_5   (ref=6.73,  pipeline=4.20,   -38%)
+  5. Sample3_3_15  (ref=6.41,  pipeline=NaN)
+
+DIAGNOSTIC FINDINGS
+  Ran diagnose_cell.py on each to examine mask quality, nucleus selection,
+  and intensity distributions. Found two key issues:
+  
+  1. Nucleus Selection (4 cases)
+     Sample3_3_15 had zero condensate overlap with central nucleus,
+     causing NaN PC. Other cases appeared to have correct nuclei.
+  
+  2. Mask Quality (multiple cases)
+     Cellpose masks appear loose/inflated:
+     - Sample1_1_1: dilute region has peak intensity 1214 (should be ~82)
+     - Suggests masks include dim halos beyond true condensate boundaries
+
+MAX-OVERLAP NUCLEUS TEST
+  Implemented and tested max-overlap nucleus heuristic (pick nucleus with
+  MOST condensate-mask overlap) on all 5 cases:
+  
+  Results:
+    Sample1_1_1 : label 1 (no change) — nucleus was correct
+    Sample3_3_2 : label 1 (no change) — nucleus was correct
+    Sample3_3_11: label 1 (no change) — nucleus was correct
+    Sample2_5_5 : label 2 (no change) — nucleus was correct
+    Sample3_3_15: label 4→8 (CHANGE!) — fixed NaN, got 180 voxel overlap
+  
+  Key insight: Max-overlap fixes Sample3_3_15 (NaN case) but doesn't
+  change nucleus selection for Cases 1-4. This means the central nucleus
+  heuristic was already correct for those cases. The failures are due to
+  mask tightness, not nucleus selection.
+
+ROOT CAUSE ANALYSIS
+  Sample1_1_1  — Mask too loose
+                 Pipeline cond dens (550.4) >> reference (390.42)
+                 Dilute region peak (1214) is suspiciously bright
+  
+  Sample3_3_2  — Condensates underestimated
+                 Pipeline cond dens (231.5) << reference (633.55)
+                 Could be mask missing condensates or other issue
+  
+  Sample3_3_11 — Trimming parameter wrong
+                 Pipeline mean (470.3) too low, but top-25% (1314.9) 
+                 nearly matches reference (1361.65)
+  
+  Sample2_5_5  — Wide FOV, nucleus far from center (102.5px)
+                 But max-overlap confirms label 2 is correct nucleus
+                 Still underestimates cond dens (196.1 vs 497.0)
+  
+  Sample3_3_15 — Central nucleus too small, zero overlap (FIXED by max-overlap)
+
+DECISION
+  Implement max-overlap nucleus heuristic in batch_compare.py and diagnose_cell.py.
+  This fixes Case 5 and provides better nucleus selection for wide FOVs
+  without hurting the other cases.
+
+NEXT STEPS
+  [ ] Implement max-overlap nucleus in batch_compare.py (replace central)
+  [ ] Re-run full batch_compare on all 30 JABr cells with new heuristic
+  [ ] For remaining failures (1-4), investigate:
+      - Cellpose parameter tuning for tighter masks
+      - Adaptive top-X% trimming based on intensity distribution
+      - Mask post-processing (morphological operations)
+  [ ] Update progress log with final batch results
+
+
+----------------------------------------------------
+2026-05-14  Baseline Testing + Custom Model Training Strategy
+----------------------------------------------------
+
+BASELINE TESTING
+  Ran original pipeline.py (all nuclei, no nucleus selection) on Sample1_1_1:
+    Partition Coefficient : 11.771
+    Condensate density    : 666.10  (reference: 390.42 — 71% too high)
+    Dilute density        : 56.59
+
+  Previous run (central nucleus only):
+    Condensate density    : 550.4 (41% too high)
+
+  Conclusion: The issue is MASK QUALITY, not nucleus selection.
+  Cellpose cyto3 model draws loose boundaries that include dim halos,
+  inflating condensate density measurements. Even with nucleus selection,
+  we can't get down to reference values.
+
+SEGMENTATION MODEL ANALYSIS
+  Current setup: cyto3 model for BOTH condensates and nuclei
+  - cyto3 is a general cytoplasm model, not optimized for small
+    punctate structures like condensates
+  - Tested alternatives (U-FISH, StarDist, Nellie) in April — all
+    had limitations or worse performance
+
+CUSTOM MODEL TRAINING OPPORTUNITY
+  Key insight: We have 30 JABr cells with reference PC, cond density,
+  and dilute density from a published paper (peer-reviewed ground truth).
+
+  Proposed strategy:
+    1. Check if reference segmentation masks exist in Box/JABr/Masks/
+    2. If yes: extract masks from 30 reference cells
+    3. Train custom Cellpose model on those 30 samples
+    4. Apply trained model to new samples
+    5. The model would learn JABr-specific condensate morphology
+       (small punctate, fluorescent aptamer signal, etc.)
+
+  Expected benefits:
+    - Masks tailored to actual condensate boundaries, not generic cytoplasm
+    - Would leverage the published paper's validated ground truth
+    - Likely to dramatically improve PC accuracy
+
+NEXT STEPS
+  [ ] Investigate Box/JABr/Masks/ — what format are reference masks in?
+  [ ] If masks are available: prepare training dataset
+  [ ] Train custom Cellpose model on RTX 4080 (sufficient GPU power)
+  [ ] Validate trained model on held-out JABr cells
+  [ ] Apply to new constructs (JwtBr, 10ntABr, etc.)
+
