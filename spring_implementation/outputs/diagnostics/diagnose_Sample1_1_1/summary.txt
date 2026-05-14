@@ -1,0 +1,29 @@
+DIAGNOSTIC: 20240516_JABr_40uMDFHBI_20-40_Sample1_1_1.tif
+FOV shape (Z, Y, X)            : (47, 161, 176)
+Background B (min of FOV)      : 89.0
+Cond intensity range (raw)     : [89, 1896]
+
+== Mask coverage ==
+Total cond mask voxels         :       8531  (0.64% of FOV)
+Central nucleus voxels         :     191313  (14.37% of FOV)
+Cond & nucleus (used for PC)   :       2831
+Dilute region (nuc & ~cond)    :     188482
+
+== Condensate-density variants (background-subtracted) ==
+Mean of mask voxels (CURRENT)  : 550.4
+Median of mask voxels          : 528.0
+Top 50% brightest in mask      : 797.3
+Top 25% brightest in mask      : 927.5
+Top 10% brightest in mask      : 1016.5
+Peak in mask                   : 1294.0
+Sum / volume (= mean)          : 550.4
+
+== What's bright that's NOT in the mask? ==
+Dilute region peak             : 1214.0
+Dilute region 99th percentile  : 433.0
+Dilute region 95th percentile  : 190.0
+
+== Reference (Imaris/manual) ==
+Reference PC                   : 4.78
+Reference cond density         : 390.42
+Reference dilute density       : 81.67
