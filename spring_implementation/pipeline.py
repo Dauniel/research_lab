@@ -143,13 +143,14 @@ def denoise_stack(stack: np.ndarray, dn_model, label: str) -> np.ndarray:
 
 # ── Step 3: Segment ───────────────────────────────────────────────────────────
 
-def segment_condensates(stack: np.ndarray, seg_model, diameter) -> np.ndarray:
+def segment_condensates(stack: np.ndarray, seg_model, diameter, cellprob_threshold: float = 0.0) -> np.ndarray:
     """Segment condensates with Cellpose 3 in native 3D mode."""
-    print("  Segmenting condensates (do_3D=True)...")
+    print(f"  Segmenting condensates (do_3D=True, cellprob_threshold={cellprob_threshold})...")
     masks_3d, _, _ = seg_model.eval(
         stack,
         do_3D=True,
         diameter=diameter,
+        cellprob_threshold=cellprob_threshold,
         channels=[0, 0],
     )
     print(f"    condensates: {masks_3d.max()} objects found")

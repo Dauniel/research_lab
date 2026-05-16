@@ -949,3 +949,148 @@ NEXT STEPS
   [ ] Validate trained model on held-out JABr cells
   [ ] Apply to new constructs (JwtBr, 10ntABr, etc.)
 
+
+----------------------------------------------------
+2026-05-15 to 16  Custom Model Training, Evaluation, and Generalization Tests
+----------------------------------------------------
+
+CONTEXT
+  Built on the 2026-05-14 plan to train a custom Cellpose model on
+  the multi-construct condensate dataset. Goal: see whether the
+  trained model improves PC accuracy over generic cyto3, and how
+  well it generalizes across constructs.
+
+TRAINING RUN
+  Dataset: 663 labeled 3D volumes across 24 constructs (530 train,
+    133 val), built by build_training_data.py. Each volume sliced
+    into 2D Z-planes (min 3 instances/slice).
+  Pretrained: cyto3
+  Schedule:
+    - First attempt halted at epoch 25 (Sample stopped overnight,
+      checkpoint cond_cyto3_epoch_0025 saved at 07:18).
+    - Resumed at 08:54 from epoch_0025 checkpoint by loading it
+      as pretrained_model (added auto-detection of file vs name
+      to train_cellpose.py).
+    - 125 more epochs, finished 19:01, total ~10 h.
+  Loss curve (resume run):
+    Epoch 0   train=0.107  val=0.120  (confirmed weight continuity
+              — original log epoch 20 was train=0.110, val=0.121)
+    Epoch 50  train=0.101  val=0.116
+    Epoch 80  train=0.096  val=0.111  (LR decay kicked in)
+    Epoch 100 train=0.087  val=0.107
+    Epoch 120 train=0.088  val=0.107  (converged)
+  Final model: cond_cyto3_resume   (best val: 0.1065 at epoch 110)
+  Checkpoints: epoch 25, 50, 75, 100, plus final, all preserved.
+
+PIPELINE INTEGRATION
+  Modified batch_compare.py and diagnose_cell.py to accept
+    --cond-model <path> so the trained model can replace cyto3
+    just for the condensate channel (nuclei still use cyto3).
+  Added --cond-cellprob to both scripts to expose the
+    cellprob_threshold knob for condensate segmentation.
+  Modified pipeline.segment_condensates() to take an optional
+    cellprob_threshold kwarg (default 0.0 = unchanged behavior).
+
+BATCH RESULTS ON JABr (30 cells)
+  Run                            |  r    | RMSE | Mean err %
+  --------------------------------|-------|------|----------
+  cyto3 + max-overlap            | 0.708 | 3.02 |   +2.1%
+  TRAINED (topx=75, cp=0)        | 0.882 | 9.28 |  +75.6%
+  TRAINED (topx=100, cp=-2)      | 0.870 | 7.14 |  +42.0%
+
+  After linear calibration on TRAINED+tuned:
+    Through-origin: pc_imaris ~ 0.576 * pipeline_pc  -> RMSE 2.86
+    Full linear:    pc_imaris ~ 0.379 * pipeline_pc + 3.72
+                                                     -> RMSE 1.91
+  Result: trained + calibration meaningfully beats cyto3
+    (RMSE 1.91 vs 3.02, ~37% better).
+
+MASK BEHAVIOR DIAGNOSTIC (Sample3_3_3, worst over-estimated cell)
+  Cyto3:    72,487 cond voxels (1.90% FOV)  mean=599   (LOOSE, includes halo)
+  Trained:  18,248 cond voxels (0.48% FOV)  mean=1166  (TIGHT, bright cores only)
+  Reference (Imaris): cond_density 789, between the two.
+
+  KEY INSIGHT: Trained model gives TIGHTER, BRIGHTER masks (opposite
+    of initial prediction). cond_topx=75 was calibrated for cyto3's
+    loose masks — applying it on already-tight trained masks
+    over-amplifies. cellprob_threshold sweep (-1, -2, -3) had
+    only small effect (mean dropped 1166 -> 1068), so we hit the
+    asymptote of inference-time tuning.
+
+CROSS-CONSTRUCT TEST ON GABr (30 cells)
+  TRAINED (topx=100, cp=-2):  r=0.581  RMSE=5.88  mean_err=+52.2%
+  JABr's calibration k=0.576 applied to GABr:
+    RMSE drops to 4.08 (close to a GABr-specific k=0.624 which
+    gives 4.04). Calibration constants generalize OK across
+    constructs — k stays in 0.58–0.62 range.
+  BUT: trained r=0.58 on GABr is much weaker than r=0.87 on JABr.
+    Calibration can't fix a poor ranking — the underlying model
+    doesn't handle GABr as well.
+
+TRAINING-SET LEAKAGE FINDING
+  Discovered that ALL 30 JABr "test" cells and ALL 30 GABr "test"
+    cells are IN the training data (24 in train + 6 in val per
+    construct). The Cut ROI/ directories ARE the training source.
+  Implication: every result above is essentially training-set
+    memorization, NOT generalization. JABr's r=0.87 is best-case.
+    GABr's r=0.58 is more concerning — model is underperforming
+    on its own training data for that construct.
+
+HELD-OUT TEST ATTEMPT (Tornado, 18 cells, NEVER in training)
+  Cyto3 baseline finished:
+    r=0.230  RMSE=3.29  mean_err=+51.9%
+    (Tornado is a hard construct even for cyto3 — much worse than
+    cyto3's r=0.71 on JABr.)
+  Trained portion stalled: PC went to sleep mid-run after ~25 min,
+    CUDA context hung. Process killed; trained Tornado results NOT
+    obtained yet. Need to disable PC sleep before re-running.
+
+STRATEGIC CONCLUSIONS
+  Trained model is BETTER than cyto3 on the construct it learned
+    best (JABr), with calibration. But generalization is uneven:
+    GABr underperforms despite being in training. Probable cause:
+    inconsistent labeling style across constructs (tight vs loose
+    masks), or insufficient coverage of GABr-style condensates.
+  Bottleneck for further accuracy is DATA QUALITY (labels), not
+    model architecture or inference tuning.
+  For a 7-day push toward higher accuracy: focus on label audit,
+    per-construct calibration, and possibly testing Cellpose-SAM
+    as a drop-in for OOD constructs. DO NOT pivot to a new
+    architecture — pipeline re-integration would consume the timeline.
+
+OUTPUTS THIS SESSION
+  spring_implementation/training/models/models/
+    cond_cyto3_resume                    (final, ~125 epochs after resume)
+    cond_cyto3_resume_epoch_0025/50/75/100  (checkpoints)
+    cond_cyto3_epoch_0025                (pre-resume, preserved)
+  spring_implementation/outputs/experiments/
+    batch_JABr_trained/                  topx=75, cp=0
+    batch_JABr_trained_tuned/            topx=100, cp=-2
+    batch_GABr_trained_tuned/            topx=100, cp=-2 (cross-construct test)
+    batch_Tornado_cyto3/                 cyto3 baseline on held-out
+    (batch_Tornado_trained_tuned NOT YET — re-run needed)
+  spring_implementation/outputs/diagnostics/
+    Sample3_3_3_cyto3/                   cyto3 mask diagnostic
+    Sample3_3_3_trained/                 trained mask diagnostic
+    Sample3_3_3_trained_cpm1/cpm2/cpm3/  cellprob sweep
+    Sample3_3_3_trained_tuned/           NaN-cell investigation
+    Sample3_3_15_trained_tuned/          NaN root cause (cond outside nuclei)
+  Modified files:
+    spring_implementation/training/train_cellpose.py  (auto-detect ckpt path)
+    spring_implementation/batch_compare.py            (--cond-model, --cond-cellprob)
+    spring_implementation/diagnose_cell.py            (--cond-model, --cond-cellprob)
+    spring_implementation/pipeline.py                 (cellprob_threshold kwarg)
+
+NEXT STEPS
+  [ ] Disable PC sleep, re-run trained model on Tornado (held-out)
+  [ ] If trained beats cyto3 on Tornado: run full 16-construct sweep
+      to map per-construct accuracy
+  [ ] Audit training labels for consistency across constructs
+      (especially GABr — check if masks are systematically tighter
+      or looser than JABr)
+  [ ] Consider per-construct calibration table baked into pipeline.py
+  [ ] Optional: test Cellpose-SAM as a drop-in to see if it
+      handles weak constructs better without retraining
+  [ ] Handle the cond ∩ nucleus = 0 NaN case in batch_compare
+      (Sample3_3_15 — cond detected but outside any nucleus)
+

@@ -4,7 +4,7 @@ to figure out why pipeline PC differs from the manual reference.
 
 Outputs to <output>/diagnose_<filename>/:
     raw_midZ.png            mid-Z slice of cond/nuc channels
-    mask_overlay.png        condensate mask + central nucleus overlay
+    mask_overlay.png        condensate mask + target nucleus overlay
     intensity_hist.png      histogram of intensities inside vs outside cond mask
     summary.txt             pipeline densities computed several ways
 
@@ -25,19 +25,19 @@ from cellpose import models, core, denoise as cp_denoise
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pipeline import denoise_stack, segment_condensates, segment_nuclei
-from batch_compare import central_nucleus_only, max_overlap_nucleus
+from batch_compare import max_overlap_nucleus
 
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--tif",      required=True, type=Path)
-    p.add_argument("--output",   default=None,  type=Path)
-    p.add_argument("--ref-pc",   default=None,  type=float)
-    p.add_argument("--ref-cond", default=None,  type=float)
-    p.add_argument("--ref-dil",  default=None,  type=float)
-    p.add_argument("--nucleus-method", default="central", choices=["central", "max-overlap"],
-                   help="Nucleus selection: 'central' (closest to FOV center) or 'max-overlap' (most cond overlap)")
-    p.add_argument("--no-gpu",   action="store_true")
+    p.add_argument("--tif",        required=True, type=Path)
+    p.add_argument("--output",     default=None,  type=Path)
+    p.add_argument("--ref-pc",     default=None,  type=float)
+    p.add_argument("--ref-cond",   default=None,  type=float)
+    p.add_argument("--ref-dil",    default=None,  type=float)
+    p.add_argument("--cond-model",    default=None, type=Path, help="Fine-tuned condensate model path (default: cyto3)")
+    p.add_argument("--cond-cellprob", default=0.0,  type=float, help="cellprob_threshold for condensate seg (lower = more inclusive)")
+    p.add_argument("--no-gpu",        action="store_true")
     return p.parse_args()
 
 
@@ -55,18 +55,20 @@ def main():
 
     # Run pipeline
     use_gpu = core.use_gpu() and not args.no_gpu
-    dn_model  = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
-    seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    dn_model      = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
+    nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    if args.cond_model is not None:
+        print(f"Condensate model: {args.cond_model}")
+        cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
+    else:
+        cond_seg_model = nuc_seg_model
 
     cond_restored = denoise_stack(cond_stack, dn_model, "condensates")
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
-    cond_masks    = segment_condensates(cond_restored, seg_model, diameter=None)
-    nuc_masks     = segment_nuclei(nuc_restored, seg_model, diameter=None, cellprob_threshold=-2.0)
+    cond_masks    = segment_condensates(cond_restored, cond_seg_model, diameter=None, cellprob_threshold=args.cond_cellprob)
+    nuc_masks     = segment_nuclei(nuc_restored,  nuc_seg_model,  diameter=None, cellprob_threshold=-2.0)
 
-    if args.nucleus_method == "max-overlap":
-        nuc_masks = max_overlap_nucleus(nuc_masks, cond_masks)
-    else:
-        nuc_masks = central_nucleus_only(nuc_masks)
+    nuc_masks = max_overlap_nucleus(nuc_masks, cond_masks)
 
     cond_3d = cond_masks > 0
     nuc_3d  = nuc_masks  > 0
@@ -88,7 +90,7 @@ def main():
     summary.append(f"")
     summary.append(f"== Mask coverage ==")
     summary.append(f"Total cond mask voxels         : {int(cond_3d.sum()):>10}  ({cond_3d.mean()*100:.2f}% of FOV)")
-    summary.append(f"Central nucleus voxels         : {int(nuc_3d.sum()):>10}  ({nuc_3d.mean()*100:.2f}% of FOV)")
+    summary.append(f"Target nucleus voxels          : {int(nuc_3d.sum()):>10}  ({nuc_3d.mean()*100:.2f}% of FOV)")
     summary.append(f"Cond & nucleus (used for PC)   : {int(nuclear_cond.sum()):>10}")
     summary.append(f"Dilute region (nuc & ~cond)    : {int(dilute_3d.sum()):>10}")
     summary.append(f"")
@@ -153,7 +155,7 @@ def main():
     ax[1].contour(cm, levels=[0.5], colors="lime", linewidths=0.6)
     nm = nuc_3d[midZ]
     ax[1].contour(nm, levels=[0.5], colors="cyan",  linewidths=0.8)
-    ax[1].set_title("Cond mask (green) + central nucleus (cyan)")
+    ax[1].set_title("Cond mask (green) + target nucleus (cyan)")
     ax[1].axis("off")
 
     # used-for-PC region (cond & nuc)
