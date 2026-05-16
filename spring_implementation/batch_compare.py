@@ -37,37 +37,10 @@ def parse_args():
     p.add_argument("--nuc-cellprob",  default=-2.0,  type=float)
     p.add_argument("--cond-topx",     default=75.0,  type=float, help="Top-X%% brightest cond voxels (100 = full mean)")
     p.add_argument("--all-nuclei",    action="store_true",       help="Skip nucleus selection, pool all nuclei")
+    p.add_argument("--cond-model",    default=None,  type=Path,  help="Path to fine-tuned Cellpose model for condensates (default: cyto3)")
+    p.add_argument("--cond-cellprob", default=0.0,   type=float, help="cellprob_threshold for condensate seg")
     p.add_argument("--no-gpu",        action="store_true")
     return p.parse_args()
-
-
-def central_nucleus_only(nuc_masks: np.ndarray) -> np.ndarray:
-    """Keep only the nucleus whose XY centroid is closest to the image center."""
-    if nuc_masks.max() == 0:
-        return nuc_masks
-
-    Z, Y, X = nuc_masks.shape
-    cy_target, cx_target = Y / 2.0, X / 2.0
-
-    labels = np.unique(nuc_masks)
-    labels = labels[labels > 0]
-
-    best_label = None
-    best_dist  = float("inf")
-    for lbl in labels:
-        coords = np.argwhere(nuc_masks == lbl)
-        cy = coords[:, 1].mean()
-        cx = coords[:, 2].mean()
-        dist = ((cy - cy_target) ** 2 + (cx - cx_target) ** 2) ** 0.5
-        if dist < best_dist:
-            best_dist  = dist
-            best_label = int(lbl)
-
-    out = np.zeros_like(nuc_masks)
-    if best_label is not None:
-        out[nuc_masks == best_label] = 1
-        print(f"    central nucleus: label {best_label}  (XY dist {best_dist:.1f} from center)")
-    return out
 
 
 def max_overlap_nucleus(nuc_masks: np.ndarray, cond_masks: np.ndarray) -> np.ndarray:
@@ -104,8 +77,8 @@ def max_overlap_nucleus(nuc_masks: np.ndarray, cond_masks: np.ndarray) -> np.nda
     return out
 
 
-def run_one(tif_path: Path, dn_model, seg_model, nuc_cellprob: float,
-            cond_topx: float = 75.0, all_nuclei: bool = False) -> dict:
+def run_one(tif_path: Path, dn_model, cond_seg_model, nuc_seg_model, nuc_cellprob: float,
+            cond_topx: float = 75.0, all_nuclei: bool = False, cond_cellprob: float = 0.0) -> dict:
     roi = tiff.imread(tif_path)
     if roi.ndim != 4 or roi.shape[1] != 2:
         raise ValueError(f"Expected (Z, 2, Y, X), got {roi.shape}")
@@ -115,8 +88,8 @@ def run_one(tif_path: Path, dn_model, seg_model, nuc_cellprob: float,
     cond_restored = denoise_stack(cond_stack, dn_model, "condensates")
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
 
-    cond_masks = segment_condensates(cond_restored, seg_model, diameter=None)
-    nuc_masks  = segment_nuclei(nuc_restored, seg_model, diameter=None, cellprob_threshold=nuc_cellprob)
+    cond_masks = segment_condensates(cond_restored, cond_seg_model, diameter=None, cellprob_threshold=cond_cellprob)
+    nuc_masks  = segment_nuclei(nuc_restored,  nuc_seg_model,  diameter=None, cellprob_threshold=nuc_cellprob)
     if not all_nuclei:
         nuc_masks = max_overlap_nucleus(nuc_masks, cond_masks)
 
@@ -147,8 +120,14 @@ def main():
     # Initialise models once
     use_gpu = core.use_gpu() and not args.no_gpu
     print(f"GPU: {'enabled — ' + torch.cuda.get_device_name(0) if use_gpu else 'disabled'}\n")
-    dn_model  = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
-    seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    dn_model      = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
+    nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    if args.cond_model is not None:
+        print(f"Condensate model: {args.cond_model}")
+        cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
+    else:
+        print("Condensate model: cyto3 (built-in)")
+        cond_seg_model = nuc_seg_model
 
     rows = []
     for tif_path in tif_paths:
@@ -159,8 +138,9 @@ def main():
 
         print(f"Processing {fname}...")
         try:
-            result  = run_one(tif_path, dn_model, seg_model, args.nuc_cellprob,
-                              cond_topx=args.cond_topx, all_nuclei=args.all_nuclei)
+            result  = run_one(tif_path, dn_model, cond_seg_model, nuc_seg_model, args.nuc_cellprob,
+                              cond_topx=args.cond_topx, all_nuclei=args.all_nuclei,
+                              cond_cellprob=args.cond_cellprob)
             ref_row = ref_lookup.loc[fname]
             rows.append({
                 "filename":                fname,

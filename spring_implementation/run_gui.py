@@ -432,16 +432,8 @@ class PipelineGUI:
                     cond_masks_3d = segment_condensates(cond_restored, seg_model, None)
                     nuc_masks_3d  = segment_nuclei(nuc_restored, seg_model, None, cellprob)
 
-                    # Central nucleus selection
-                    import numpy as np
-                    from skimage.measure import regionprops
-                    cy, cx = nuc_stack.shape[1] / 2, nuc_stack.shape[2] / 2
-                    best_lbl, best_dist = 1, float("inf")
-                    for rp in regionprops(nuc_masks_3d.max(axis=0)):
-                        d = ((rp.centroid[0] - cy)**2 + (rp.centroid[1] - cx)**2) ** 0.5
-                        if d < best_dist:
-                            best_dist, best_lbl = d, rp.label
-                    nuc_single = (nuc_masks_3d == best_lbl).astype(np.int32)
+                    from batch_compare import max_overlap_nucleus
+                    nuc_single = max_overlap_nucleus(nuc_masks_3d, cond_masks_3d)
 
                     pc = compute_partition_coefficient(
                         cond_stack, cond_masks_3d, nuc_single, cond_topx=topx)

@@ -33,7 +33,7 @@ from cellpose import models, core, denoise as cp_denoise
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pipeline import denoise_stack, segment_condensates, segment_nuclei
-from batch_compare import central_nucleus_only
+from batch_compare import max_overlap_nucleus
 
 
 PERCENTILES = [10, 20, 25, 30, 40, 50, 75]   # X = top X% brightest
@@ -81,7 +81,7 @@ def run_one(tif_path: Path, dn_model, seg_model, nuc_cellprob: float) -> dict:
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
     cond_masks    = segment_condensates(cond_restored, seg_model, diameter=None)
     nuc_masks     = segment_nuclei(nuc_restored, seg_model, diameter=None, cellprob_threshold=nuc_cellprob)
-    nuc_masks     = central_nucleus_only(nuc_masks)
+    nuc_masks     = max_overlap_nucleus(nuc_masks, cond_masks)
 
     cond_3d = cond_masks > 0
     nuc_3d  = nuc_masks  > 0

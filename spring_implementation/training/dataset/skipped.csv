@@ -1,0 +1,19 @@
+construct,filename,reason
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample1_1_2.tif,no matching Cut ROI
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample2_1_1.tif,no matching Cut ROI
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample2_1_2.tif,no matching Cut ROI
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample1_1_1.tif,"shape mismatch: mask (35, 273, 270) vs roi (38, 3, 225, 282)"
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample1_2_1.tif,"shape mismatch: mask (49, 168, 148) vs roi (55, 3, 288, 286)"
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample1_2_2.tif,"shape mismatch: mask (49, 235, 147) vs roi (55, 3, 384, 206)"
+15ntCMango,20240712_15ntCMango_fixed_400nMTO1B_20-20-80_Sample1_2_3.tif,"shape mismatch: mask (49, 175, 358) vs roi (55, 3, 256, 216)"
+ABPP,20241017_ABPP_NucHBC620_20-50_Smaple1_4_4.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_1_5_2 cells.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_2_1_2 cells.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample2_1_1_2 cells.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample2_2_1_2 cells.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample2_3_2_2 cells.tif,no matching Cut ROI
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_1_1.tif,"shape mismatch: mask (111, 224, 223) vs roi (87, 2, 288, 273)"
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_1_2.tif,"shape mismatch: mask (111, 328, 281) vs roi (87, 2, 387, 396)"
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_1_3.tif,"shape mismatch: mask (111, 166, 168) vs roi (87, 2, 237, 246)"
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_2_2.tif,"shape mismatch: mask (91, 284, 275) vs roi (83, 2, 375, 513)"
+JBPP,20250509_JAPP_40uMDFHBI_10nMHBC620_400nMTO1B_20-40-50_sample1_3_1.tif,"shape mismatch: mask (85, 260, 406) vs roi (81, 2, 327, 333)"
