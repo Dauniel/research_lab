@@ -162,6 +162,30 @@ def main():
     df.to_csv(EXPERIMENTS.parent / "calibration_summary.csv", index=False)
     print(f"\nSaved: {EXPERIMENTS.parent / 'calibration_summary.csv'}")
 
+    # Save full-set isotonic fit per construct -> calibration_table.json
+    # for pipeline.py to load at runtime.
+    import json
+    cal_table = {}
+    for label, trained_dir, cyto3_dir in CONSTRUCTS:
+        tpath = EXPERIMENTS / trained_dir / "comparison.csv"
+        if not tpath.exists(): continue
+        tdf = pd.read_csv(tpath).dropna(subset=["pipeline_pc"]).set_index("filename")
+        ref     = tdf["ref_pc"].to_numpy()
+        trained = tdf["pipeline_pc"].to_numpy()
+        # Use trained + isotonic as the shipped calibrator (no ensemble at
+        # inference time — keeps pipeline simple).
+        idx = np.argsort(trained)
+        iso = IsotonicRegression(out_of_bounds="clip")
+        iso.fit(trained, ref)
+        cal_table[label] = {
+            "kind": "isotonic",
+            "xs":   trained[idx].tolist(),
+            "ys":   iso.predict(trained[idx]).tolist(),
+        }
+    out_json = EXPERIMENTS.parent / "calibration_table.json"
+    out_json.write_text(json.dumps(cal_table, indent=2))
+    print(f"Saved: {out_json}  ({len(cal_table)} constructs)")
+
 
 if __name__ == "__main__":
     main()

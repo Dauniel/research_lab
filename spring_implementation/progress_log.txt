@@ -1094,3 +1094,140 @@ NEXT STEPS
   [ ] Handle the cond ∩ nucleus = 0 NaN case in batch_compare
       (Sample3_3_15 — cond detected but outside any nucleus)
 
+
+----------------------------------------------------
+2026-05-16  Goal-driven 5-construct accuracy push (JABr, GABr, AABr,
+            JABr_4arm, Tornado)
+----------------------------------------------------
+
+CONTEXT
+  /goal session with hard targets per construct:
+    Pearson r >= 0.92,  mean abs err <= 10%,  >= 80% within 20%.
+  Hard constraint: stay within fine-tuned Cellpose (no architecture pivot).
+
+WHAT WAS RUN
+  1. Re-launched trained+tuned (cond_topx=100, cellprob=-2) on the
+     3 constructs not yet evaluated (Tornado, AABr, JABr_4arm).
+     PC sleep stall from previous session resolved by adding
+     spring_implementation/keep_awake.ps1 (SetThreadExecutionState).
+  2. Built spring_implementation/analyze_calibration.py — leave-one-out
+     CV across linear, isotonic, and weighted-ensemble (cyto3+trained)
+     calibrations. Picks best strategy per construct.
+  3. Built spring_implementation/diameter_sweep.py — per-construct
+     Cellpose `diameter` sweep at inference (the trained model was
+     trained at default ~30; smaller diameter rescales images up,
+     which might help constructs with small condensates).
+  4. Added per-construct calibration plumbing to pipeline.py:
+     CALIBRATION dict loaded from outputs/calibration_table.json
+     at startup, applied via --construct NAME flag.
+
+RAW TRAINED+TUNED RESULTS (no calibration)
+  Construct    n    r       RMSE   mean_err%
+  JABr         29   0.870    7.14   +42.0%
+  GABr         29   0.581    5.88   +52.2%
+  AABr         25   0.148   19.28  +129.4%
+  JABr_4arm    37   0.807   17.39   +29.5%
+  Tornado      18   0.173    6.72  +149.1%   <- held-out
+
+PER-CONSTRUCT BEST CALIBRATION (LOO honest, isotonic +/- ensemble)
+  Construct    r_raw  r_best  err%   in20%  Best strategy
+  JABr         0.87   0.90    15.6%  69%   mix(0.7t,0.3c) + isotonic
+  GABr         0.58   0.55    59%    35%   trained + isotonic
+  AABr         0.15   0.45    57%    44%   trained + isotonic   <- big lift from cal
+  JABr_4arm    0.81   0.79    30%    49%   trained + isotonic
+  Tornado      0.17   0.01    24%    44%   isotonic destroys signal (essentially random)
+
+  NONE meet the success criteria. Closest is JABr at r=0.90, still
+  short of 0.92, and only 69% within 20% (need 80%).
+
+KEY FINDINGS
+  - Label inconsistency is the real bottleneck. Audit across all 24
+    training constructs showed median voxels-per-instance ranging
+    from 42 (15ntEMango) to 1840 (GwtBr) — a >40x cross-construct
+    spread. Within JABr_4arm CV is 1.15 (30x range within the same
+    construct). The model learned ~24 different definitions of
+    "what is a condensate" and can't reconcile them.
+  - Tornado, the only true held-out construct, performs WORSE with
+    the trained model (r=0.17) than with cyto3 baseline (r=0.23).
+    This is a strict overfitting signature — the model memorized
+    in-distribution constructs and degrades on unseen ones.
+  - Isotonic calibration is strictly better than linear for the
+    trained model output (non-linear pipeline_pc -> ref_pc relationship).
+    Mixing in 30% cyto3 PC before isotonic gives a further ~+0.03 lift
+    on JABr (where we have cyto3 baseline data). Same approach hurts
+    Tornado because both signals are noisy there.
+  - Multi-feature ridge (pipeline_pc + cond_density + dilute_density)
+    underperforms isotonic on a single feature. Added features just
+    inject noise.
+  - cellprob_threshold sweeps had marginal effect (mean cond intensity
+    moved 1166 -> 1068 between cp=0 and cp=-3). Not the right knob.
+
+WHAT WORKED
+  - Per-construct isotonic calibration as the production approach.
+    On AABr, calibration lifts raw r=0.15 to r=0.45 — entirely from
+    rank-order rebinning. Saved as calibration_table.json, loaded by
+    pipeline.py at startup.
+  - Ensemble at the PC level (trained + cyto3 weighted mean) helps
+    JABr by ~+0.03 r. Needs paired cyto3 baselines which we only have
+    for JABr and Tornado.
+
+WHAT DIDN'T WORK
+  - cond_topx and cellprob_threshold tuning past the original choices.
+  - Linear and polynomial calibration (compared to isotonic).
+  - The trained model on held-out data (Tornado, r dropped vs cyto3).
+  - Calibration on Tornado specifically — too few cells, too noisy.
+
+OUTPUTS
+  spring_implementation/outputs/calibration_summary.csv      per-construct table
+  spring_implementation/outputs/calibration_table.json       isotonic curves for pipeline.py
+  spring_implementation/outputs/experiments/
+    batch_Tornado_trained_tuned/   batch_AABr_trained_tuned/
+    batch_JABr_4arm_trained_tuned/
+  spring_implementation/analyze_calibration.py
+  spring_implementation/diameter_sweep.py
+  spring_implementation/keep_awake.ps1
+  spring_implementation/training/dataset/manifest_clean.csv  (potential retrain set)
+  Modified pipeline.py: CALIBRATION loader, --construct/--cond-model/
+    --cond-cellprob CLI flags, apply_calibration() helper.
+
+GOAL ASSESSMENT (HONEST)
+  Targets not reachable in this session via post-hoc means. To get to
+  r >= 0.92 on hard constructs (AABr, GABr, Tornado), the underlying
+  predictions must change — and that requires either re-labeling the
+  training data with consistent per-construct mask styles (multi-week
+  manual effort), or training per-construct specialist models.
+
+ADDITIONAL EXPERIMENTS RUN
+  - Optimal ensemble weight sweep on JABr (every w in [0,1] with
+    isotonic recalibration each step). Best is w=0.85 trained,
+    r=0.903 LOO — confirms JABr ceiling at r ~ 0.90 < 0.92.
+  - Diameter sweep on AABr at d in {10,15,20,30}. All explicit
+    diameters perform STRICTLY WORSE than Cellpose's auto-detect
+    (None) — r drops from baseline 0.148 to between -0.47 and -0.07.
+    Conclusion: auto-detect was already correct, diameter is not a
+    useful tuning knob here.
+  - Spearman-vs-Pearson check across all 5 constructs shows GABr
+    (Pearson 0.58 -> Spearman 0.70), AABr (0.15 -> 0.48), and
+    JABr_4arm (0.81 -> 0.88) have meaningful rank-order signal that
+    Pearson hides via outliers. Tornado is bad on BOTH (Spearman
+    0.17), confirming no generalization signal there. This validates
+    isotonic as the right calibration family.
+  - For Tornado specifically: switched the calibration_table.json
+    entry to fit on cyto3 baseline, not trained. cyto3+isotonic gives
+    Tornado r=0.13 (vs trained+isotonic r~0.01) — small but the right
+    choice; pipeline.py will use this when --construct Tornado is set.
+
+FINAL ACHIEVABLE TABLE (LOO honest)
+  Construct    r_best   err_best   in20_best   Strategy
+  JABr         0.903    15.6%      69%         mix(0.85t,0.15c) + isotonic
+  GABr         0.549    59%        35%         trained + isotonic
+  AABr         0.454    57%        44%         trained + isotonic
+  JABr_4arm    0.794    30%        49%         trained + isotonic
+  Tornado      0.126    22%        50%         cyto3 + isotonic
+
+  None of the 5 constructs meet any of the 3 success criteria
+  (r>=0.92, err<=10%, in20%>=80%). Best across-the-board is JABr at
+  r=0.90, err=15.6%, in20%=69%. The bar set in the /goal session
+  is not reachable with post-hoc methods given the current trained
+  model and training labels.
+

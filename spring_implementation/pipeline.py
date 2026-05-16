@@ -43,22 +43,38 @@ from cellpose import models, core, denoise
 
 
 # ── Per-construct calibration ────────────────────────────────────────────────
-# pc_imaris ~= slope * pipeline_pc + intercept, fit on the manual Imaris
-# reference per construct. Numbers come from analyze_calibration.py on the
-# trained model with cond_topx=100 and cellprob=-2. Empty entries fall back
-# to uncalibrated output.
-CALIBRATION = {
-    # construct: (slope, intercept)
-    # populated by analyze_calibration.py after batch evaluation
-}
+# Maps raw pipeline_pc -> Imaris-reference PC using a piecewise-linear
+# (isotonic-style) curve per construct. Each entry has 'xs' and 'ys' learned
+# from analyze_calibration.py running the trained model with cond_topx=100
+# and cellprob=-2. If 'kind' == 'linear' we use slope/intercept instead.
+# Empty / missing entries -> no calibration.
+import json
+
+_CALIB_PATH = Path(__file__).parent / "outputs" / "calibration_table.json"
+
+def _load_calibration() -> dict:
+    if _CALIB_PATH.exists():
+        try:
+            return json.loads(_CALIB_PATH.read_text())
+        except Exception as e:
+            print(f"  [warn] failed to load {_CALIB_PATH}: {e}")
+    return {}
+
+CALIBRATION = _load_calibration()
 
 
 def apply_calibration(pipeline_pc: float, construct: str | None) -> tuple[float, bool]:
     """Return (calibrated_pc, was_calibrated)."""
     if construct is None or construct not in CALIBRATION:
         return pipeline_pc, False
-    m, b = CALIBRATION[construct]
-    return m * pipeline_pc + b, True
+    entry = CALIBRATION[construct]
+    if entry.get("kind") == "linear":
+        return entry["slope"] * pipeline_pc + entry["intercept"], True
+    if entry.get("kind") == "isotonic":
+        # Piecewise-linear interpolation, clamped at endpoints.
+        xs, ys = np.asarray(entry["xs"]), np.asarray(entry["ys"])
+        return float(np.interp(pipeline_pc, xs, ys)), True
+    return pipeline_pc, False
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
