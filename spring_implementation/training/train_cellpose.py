@@ -37,17 +37,35 @@ def parse_args():
     p.add_argument("--save-every", default=25,     type=int)
     p.add_argument("--min-masks",  default=3,      type=int,
                    help="Drop 2D slices with fewer than N instance labels")
+    p.add_argument("--manifest",   default=None,   type=Path,
+                   help="Optional manifest CSV: keep only listed (construct,filename) pairs")
+    p.add_argument("--scale-range", default=None,  type=float,
+                   help="Cellpose scale_range augmentation strength (default cellpose internal)")
     p.add_argument("--no-gpu",     action="store_true")
     return p.parse_args()
 
 
-def collect_pairs(split_dir: Path):
+def collect_pairs(split_dir: Path, manifest_keys: set | None = None):
     pairs = []
     for img in sorted(split_dir.glob("*_img.tif")):
         mask = img.parent / img.name.replace("_img.tif", "_masks.tif")
-        if mask.exists():
-            pairs.append((img, mask))
+        if not mask.exists():
+            continue
+        if manifest_keys is not None:
+            # manifest filenames look like "<construct>__<orig>_img.tif"; key = stem without _img
+            key = img.name.replace("_img.tif", "")
+            if key not in manifest_keys:
+                continue
+        pairs.append((img, mask))
     return pairs
+
+
+def load_manifest_keys(manifest_path: Path, split: str) -> set:
+    import pandas as pd
+    df = pd.read_csv(manifest_path)
+    df = df[df["split"] == split]
+    # img_path looks like "train/<construct>__<orig>_img.tif" — strip dir and _img.tif
+    return {Path(p).name.replace("_img.tif", "") for p in df["img_path"]}
 
 
 def load_slices(pairs, min_masks: int, desc: str):
@@ -94,8 +112,13 @@ def main():
     # Without this, train_seg's epoch metrics go to ~/.cellpose/run.log only.
     io.logger_setup()
 
-    train_pairs = collect_pairs(args.dataset / "train")
-    val_pairs   = collect_pairs(args.dataset / "val")
+    train_keys = val_keys = None
+    if args.manifest is not None:
+        train_keys = load_manifest_keys(args.manifest, "train")
+        val_keys   = load_manifest_keys(args.manifest, "val")
+        print(f"Filtering by manifest: {args.manifest}")
+    train_pairs = collect_pairs(args.dataset / "train", train_keys)
+    val_pairs   = collect_pairs(args.dataset / "val",   val_keys)
     print(f"Train volumes: {len(train_pairs)}")
     print(f"Val volumes  : {len(val_pairs)}")
     if not train_pairs:
@@ -128,8 +151,7 @@ def main():
     else:
         model = models.CellposeModel(gpu=use_gpu, model_type=args.pretrained)
 
-    train.train_seg(
-        model.net,
+    train_kwargs = dict(
         train_data=train_imgs,
         train_labels=train_masks,
         test_data=val_imgs,
@@ -144,6 +166,9 @@ def main():
         min_train_masks=args.min_masks,
         model_name=args.name,
     )
+    if args.scale_range is not None:
+        train_kwargs["scale_range"] = args.scale_range
+    train.train_seg(model.net, **train_kwargs)
 
     print(f"\nTraining done. Checkpoints in: {args.output}")
     print(f"Best model: {args.output / args.name}")

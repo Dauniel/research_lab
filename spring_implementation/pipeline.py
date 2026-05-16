@@ -42,6 +42,25 @@ import torch
 from cellpose import models, core, denoise
 
 
+# ── Per-construct calibration ────────────────────────────────────────────────
+# pc_imaris ~= slope * pipeline_pc + intercept, fit on the manual Imaris
+# reference per construct. Numbers come from analyze_calibration.py on the
+# trained model with cond_topx=100 and cellprob=-2. Empty entries fall back
+# to uncalibrated output.
+CALIBRATION = {
+    # construct: (slope, intercept)
+    # populated by analyze_calibration.py after batch evaluation
+}
+
+
+def apply_calibration(pipeline_pc: float, construct: str | None) -> tuple[float, bool]:
+    """Return (calibrated_pc, was_calibrated)."""
+    if construct is None or construct not in CALIBRATION:
+        return pipeline_pc, False
+    m, b = CALIBRATION[construct]
+    return m * pipeline_pc + b, True
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def parse_args():
@@ -58,6 +77,9 @@ def parse_args():
     p.add_argument("--nuc-diameter",  default=None,  type=float, help="Nuclei diameter (px), None = auto-detect")
     p.add_argument("--nuc-cellprob",  default=-2.0,  type=float, help="Nuclei cellprob_threshold")
     p.add_argument("--cond-topx",     default=75.0,  type=float, help="Use mean of top-X%% brightest voxels for cond density (default 75)")
+    p.add_argument("--cond-model",    default=None,  type=Path,  help="Fine-tuned Cellpose model path for condensates (default: cyto3)")
+    p.add_argument("--cond-cellprob", default=0.0,   type=float, help="cellprob_threshold for condensate seg")
+    p.add_argument("--construct",     default=None,  type=str,   help="Construct name for per-construct PC calibration")
     p.add_argument("--no-gpu",        action="store_true",       help="Disable GPU")
     return p.parse_args()
 
@@ -473,10 +495,15 @@ def main():
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
 
     # Segment
-    print("\n[3/6] Segmenting with Cellpose 3 (cyto3, do_3D=True)...")
-    seg_model     = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
-    cond_masks_3d = segment_condensates(cond_restored, seg_model, args.diameter)
-    nuc_masks_3d  = segment_nuclei(nuc_restored, seg_model, args.nuc_diameter, args.nuc_cellprob)
+    print("\n[3/6] Segmenting with Cellpose 3 (do_3D=True)...")
+    nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+    if args.cond_model is not None:
+        print(f"    Condensate model: {args.cond_model}")
+        cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
+    else:
+        cond_seg_model = nuc_seg_model
+    cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, args.diameter, cellprob_threshold=args.cond_cellprob)
+    nuc_masks_3d  = segment_nuclei(nuc_restored,  nuc_seg_model,  args.nuc_diameter, args.nuc_cellprob)
 
     # Per-slice measurements
     print("\n[4/6] Extracting per-slice measurements...")
@@ -497,6 +524,15 @@ def main():
     print(f"    Background (B)        : {pc_result['background']:.2f}")
     print(f"    Condensate density    : {pc_result['cond_density']:.2f}")
     print(f"    Dilute density        : {pc_result['dilute_density']:.2f}")
+
+    pc_cal, was_cal = apply_calibration(pc_result["pc"], args.construct)
+    if was_cal:
+        m, b = CALIBRATION[args.construct]
+        print(f"    PC calibrated ({args.construct}, {m:.3f}*pc+{b:.3f}): {pc_cal:.3f}")
+        pc_result["pc_calibrated"] = pc_cal
+        pc_result["construct"] = args.construct
+    elif args.construct is not None:
+        print(f"    [warn] No calibration for '{args.construct}'; returning raw pipeline_pc")
 
     # Save
     save_outputs(
