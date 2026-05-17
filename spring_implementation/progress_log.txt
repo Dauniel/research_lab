@@ -1250,3 +1250,29 @@ NEXT STEPS
   [ ] Handle the cond ∩ nucleus = 0 NaN case in batch_compare
       (Sample3_3_15 — cond detected but outside any nucleus)
 
+V3 CONSTRUCT-BALANCED TRAINING (May 16, 19:49 UTC)
+  Key finding from v1 analysis: training set had severe voxel imbalance.
+  GwtBr (large condensates) = 17.4% of all voxels. Target constructs
+  (JABr, GABr, AABr, JABr_4arm) = 7% combined. This gradient imbalance
+  likely caused the model to overfit to large-condensate morphology and
+  generalize poorly to small-condensate constructs (GABr, AABr, Tornado).
+
+  SOLUTION: Added --balance-constructs flag to train_cellpose.py.
+  Upsamples underrepresented constructs so each contributes equal slice
+  count. Manifest: 437 train / 105 val volumes (manifest_clean.csv).
+  Before balance: 15,183 total slices. After balance: 35,068 slices
+  (target 1,594 per construct across 22 constructs).
+
+  COMMAND:
+    python spring_implementation/training/train_cellpose.py \
+      --manifest spring_implementation/training/dataset/manifest_clean.csv \
+      --balance-constructs \
+      --name cond_cyto3_v3_balanced \
+      --epochs 150 \
+      --save-every 25
+
+  STATUS: Training launched 2026-05-16 19:49 UTC (batch job).
+  Currently in training configuration phase (150 epochs, batch=8, lr=0.005).
+  Estimated total time: 9-12 hours (150 epochs on balanced 35k slices).
+  GPU: RTX 4080 16GB, expected VRAM peak ~14-15 GB during training loops.
+
