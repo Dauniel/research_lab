@@ -1271,8 +1271,31 @@ V3 CONSTRUCT-BALANCED TRAINING (May 16, 19:49 UTC)
       --epochs 150 \
       --save-every 25
 
-  STATUS: Training launched 2026-05-16 19:49 UTC (batch job).
-  Currently in training configuration phase (150 epochs, batch=8, lr=0.005).
-  Estimated total time: 9-12 hours (150 epochs on balanced 35k slices).
-  GPU: RTX 4080 16GB, expected VRAM peak ~14-15 GB during training loops.
+  ATTEMPT 1 (19:49 UTC): Launched with 35,068 balanced slices (no cap).
+  Ran 1 epoch (28 min/epoch) then stalled — RAM hit 99% (30.8/31.1 GB),
+  Windows paged 17.7 GB to disk. Killed after epoch 0.
+
+  ATTEMPT 2 (21:26 UTC): Script arg error (--balance-cap not in main repo
+  version). Killed immediately.
+
+  ATTEMPT 3 (21:30 UTC): Relaunched with --balance-cap 700, correct paths.
+  Dataset: 15,183 -> 15,400 slices (22 constructs x 700 slices each).
+  Ran cleanly: epoch 0-5 completed (~3.5 min/epoch, ~10 GB RAM).
+  Loss at epoch 5: train=0.1369, test=0.1197 (healthy convergence).
+  Stopped intentionally at epoch 5 (user break, no checkpoints saved yet).
+
+  STATUS: Paused at epoch 5/150. No checkpoints saved (save_every=5 for
+  next run so progress is preserved after first 5 epochs).
+
+  RESUME COMMAND (run from C:\storage\code\research):
+    python .claude/worktrees/bg-training-monitor/spring_implementation/training/train_cellpose.py \
+      --dataset spring_implementation/training/dataset \
+      --output spring_implementation/training/models \
+      --manifest spring_implementation/training/dataset/manifest_clean.csv \
+      --balance-constructs --balance-cap 700 \
+      --name cond_cyto3_v3_balanced \
+      --epochs 150 --save-every 5
+
+  ETA once resumed: ~8.5 hours (150 epochs x ~3.5 min/epoch).
+  First checkpoint saves after epoch 5 (~17 min from restart).
 
