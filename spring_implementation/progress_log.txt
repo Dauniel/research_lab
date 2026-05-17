@@ -1231,3 +1231,22 @@ FINAL ACHIEVABLE TABLE (LOO honest)
   is not reachable with post-hoc methods given the current trained
   model and training labels.
 
+V2 RETRAIN INITIATED
+  Following the label-inconsistency diagnosis, started a cleaned-data
+  retrain (cond_cyto3_v2_clean) using manifest_clean.csv (542 vols,
+  vs 663 in v1 — drops two outlier constructs and per-construct vpi
+  outliers). Training halted at epoch 20 (checkpoints at epoch 10 and
+  20 preserved). Resume or fresh retrain pending.
+
+  Built spring_implementation/evaluate_v2.py as a one-command harness:
+  runs batch_compare + analyze_calibration across all 5 focus constructs
+  using the v2 model and prints the updated accuracy table.
+
+NEXT STEPS
+  [ ] Resume or restart v2 retrain to completion (~100 epochs)
+  [ ] Run evaluate_v2.py once v2 model is ready; compare against v1 table
+  [ ] Audit training labels for consistency across constructs (especially
+      GABr — check if masks are systematically tighter or looser than JABr)
+  [ ] Handle the cond ∩ nucleus = 0 NaN case in batch_compare
+      (Sample3_3_15 — cond detected but outside any nucleus)
+
