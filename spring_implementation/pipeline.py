@@ -383,6 +383,9 @@ def save_outputs(
         ("voxel_xy_um",           voxel_xy if voxel_xy else float("nan")),
         ("voxel_z_um",            voxel_z  if voxel_z  else float("nan")),
     ]
+    if "pc_calibrated" in pc_result:
+        summary_rows.append(("pc_calibrated", pc_result["pc_calibrated"]))
+        summary_rows.append(("construct",     pc_result["construct"]))
     pd.DataFrame(summary_rows, columns=["metric", "value"]).to_csv(
         output_dir / "summary.csv", index=False
     )
@@ -543,8 +546,12 @@ def main():
 
     pc_cal, was_cal = apply_calibration(pc_result["pc"], args.construct)
     if was_cal:
-        m, b = CALIBRATION[args.construct]
-        print(f"    PC calibrated ({args.construct}, {m:.3f}*pc+{b:.3f}): {pc_cal:.3f}")
+        entry = CALIBRATION[args.construct]
+        if entry.get("kind") == "linear":
+            m, b = entry["slope"], entry["intercept"]
+            print(f"    PC calibrated ({args.construct}, {m:.3f}*pc+{b:.3f}): {pc_result['pc']:.3f} -> {pc_cal:.3f}")
+        else:
+            print(f"    PC calibrated ({args.construct}, {entry.get('kind', 'unknown')}): {pc_result['pc']:.3f} -> {pc_cal:.3f}")
         pc_result["pc_calibrated"] = pc_cal
         pc_result["construct"] = args.construct
     elif args.construct is not None:

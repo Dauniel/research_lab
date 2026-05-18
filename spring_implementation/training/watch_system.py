@@ -1,28 +1,27 @@
 """
-watch_system.py — Live monitor for GPU / CPU / RAM during training.
+watch_system.py — Live terminal monitor for GPU / CPU / RAM during training.
 
-Plots a rolling window of:
-    - GPU utilization (%)         (top-left)
-    - GPU memory used (GB)        (top-right)
-    - CPU load (%)                (bottom-left)
-    - System RAM used (GB)        (bottom-right)
+Prints a compact, in-place updating dashboard:
 
-The window title shows current GPU temp, power draw, and fan speed.
+    [01:42:15]
+    GPU util  [############........]  62%   68C  245/320W  fan 65%
+    VRAM      [######..............]  4.2 / 16.0 GB
+    CPU       [###.................]  15%
+    RAM       [##########..........]  12.3 / 31.1 GB
 
 Run in a separate terminal while training is going:
     python spring_implementation/training/watch_system.py
 
-Close the window or Ctrl-C to stop. Does not interact with the training
-process in any way — it only reads sensors.
+Ctrl-C to stop. Does not interact with the training process — only reads sensors.
 """
 
 import argparse
+import shutil
 import subprocess
+import sys
 import time
-from collections import deque
 from datetime import datetime
 
-import matplotlib.pyplot as plt
 import psutil
 
 
@@ -41,8 +40,8 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--refresh", default=2.0, type=float,
                    help="Seconds between samples (default 2)")
-    p.add_argument("--history", default=300, type=int,
-                   help="Number of samples to keep on screen (default 300 = 10 min at 2s)")
+    p.add_argument("--bar-width", default=20, type=int,
+                   help="Width of each progress bar in chars (default 20)")
     return p.parse_args()
 
 
@@ -58,125 +57,80 @@ def read_gpu():
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     parts = [p.strip() for p in out.strip().splitlines()[0].split(",")]
+    def _f(x):
+        try: return float(x)
+        except ValueError: return 0.0
     return {
-        "util":      float(parts[0]),
-        "mem_used":  float(parts[1]) / 1024.0,   # MiB -> GiB
-        "mem_total": float(parts[2]) / 1024.0,
-        "temp":      float(parts[3]),
-        "power":     float(parts[4]),
-        "power_lim": float(parts[5]),
-        "fan":       float(parts[6]),
+        "util":      _f(parts[0]),
+        "mem_used":  _f(parts[1]) / 1024.0,   # MiB -> GiB
+        "mem_total": _f(parts[2]) / 1024.0,
+        "temp":      _f(parts[3]),
+        "power":     _f(parts[4]),
+        "power_lim": _f(parts[5]),
+        "fan":       _f(parts[6]),
     }
+
+
+def bar(frac: float, width: int) -> str:
+    frac = max(0.0, min(1.0, frac))
+    filled = int(round(frac * width))
+    return "[" + "#" * filled + "." * (width - filled) + "]"
 
 
 def main():
     args = parse_args()
-
-    # Prime psutil's CPU counter so the first reading isn't 0.0
-    psutil.cpu_percent(interval=None)
-
-    history = args.history
-    t_hist        = deque(maxlen=history)
-    gpu_util_hist = deque(maxlen=history)
-    gpu_mem_hist  = deque(maxlen=history)
-    cpu_hist      = deque(maxlen=history)
-    ram_hist      = deque(maxlen=history)
-
+    psutil.cpu_percent(interval=None)  # prime
     ram_total_gb = psutil.virtual_memory().total / 1024**3
 
-    plt.ion()
-    fig, axes = plt.subplots(2, 2, figsize=(12, 7))
-    (ax_gpu, ax_vram), (ax_cpu, ax_ram) = axes
+    # 5 lines: timestamp + 4 metric rows
+    n_lines = 5
+    # Print blank lines once so we can move cursor up on every refresh
+    sys.stdout.write("\n" * n_lines)
 
-    line_gpu,  = ax_gpu.plot([],  [], "-", color="tab:green")
-    line_vram, = ax_vram.plot([], [], "-", color="tab:purple")
-    line_cpu,  = ax_cpu.plot([],  [], "-", color="tab:blue")
-    line_ram,  = ax_ram.plot([],  [], "-", color="tab:red")
+    try:
+        while True:
+            cpu = psutil.cpu_percent(interval=None)
+            ram_used_gb = psutil.virtual_memory().used / 1024**3
+            gpu = read_gpu()
 
-    for ax, ylabel, ymax in [
-        (ax_gpu,  "GPU util (%)",     100),
-        (ax_vram, "GPU VRAM (GB)",    None),  # set after first sample
-        (ax_cpu,  "CPU load (%)",     100),
-        (ax_ram,  "RAM used (GB)",    ram_total_gb),
-    ]:
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel("seconds ago")
-        ax.grid(True, alpha=0.3)
-        if ymax is not None:
-            ax.set_ylim(0, ymax)
+            # Move cursor up to overwrite previous block
+            sys.stdout.write(f"\033[{n_lines}A")
 
-    fig.tight_layout()
+            ts = datetime.now().strftime("%H:%M:%S")
+            lines = [f"[{ts}]"]
 
-    start = time.time()
-    print(f"Sampling every {args.refresh:.1f}s, keeping last {history} samples")
-    print(f"System RAM total: {ram_total_gb:.1f} GB")
-    print("Close the window or Ctrl-C to stop.\n")
+            w = args.bar_width
+            if gpu is not None:
+                lines.append(
+                    f"GPU util  {bar(gpu['util']/100, w)}  {gpu['util']:3.0f}%   "
+                    f"{gpu['temp']:.0f}C  {gpu['power']:.0f}/{gpu['power_lim']:.0f}W  "
+                    f"fan {gpu['fan']:.0f}%"
+                )
+                lines.append(
+                    f"VRAM      {bar(gpu['mem_used']/gpu['mem_total'], w)}  "
+                    f"{gpu['mem_used']:.1f} / {gpu['mem_total']:.1f} GB"
+                )
+            else:
+                lines.append("GPU util  (nvidia-smi unavailable)")
+                lines.append("VRAM      (nvidia-smi unavailable)")
 
-    gpu_warned = False
-
-    while True:
-        now = time.time() - start
-        cpu = psutil.cpu_percent(interval=None)
-        ram_used_gb = psutil.virtual_memory().used / 1024**3
-
-        gpu = read_gpu()
-        if gpu is None and not gpu_warned:
-            print("nvidia-smi unavailable — GPU panels will stay empty")
-            gpu_warned = True
-
-        t_hist.append(now)
-        cpu_hist.append(cpu)
-        ram_hist.append(ram_used_gb)
-        if gpu is not None:
-            gpu_util_hist.append(gpu["util"])
-            gpu_mem_hist.append(gpu["mem_used"])
-            # Cap VRAM panel at total VRAM (only need to do this once we know it)
-            if ax_vram.get_ylim()[1] != gpu["mem_total"]:
-                ax_vram.set_ylim(0, gpu["mem_total"])
-
-        # x-axis = seconds-ago, so the newest sample is at 0 and history scrolls left
-        xs = [now - t for t in t_hist]
-        line_cpu.set_data(xs, list(cpu_hist))
-        line_ram.set_data(xs, list(ram_hist))
-        if gpu_util_hist:
-            # GPU history may be shorter if nvidia-smi briefly failed mid-run
-            xs_gpu = xs[-len(gpu_util_hist):]
-            line_gpu.set_data(xs_gpu, list(gpu_util_hist))
-            line_vram.set_data(xs_gpu, list(gpu_mem_hist))
-
-        window = args.refresh * history
-        for ax in (ax_gpu, ax_vram, ax_cpu, ax_ram):
-            ax.set_xlim(window, 0)  # inverted so 0 (now) is on the right
-
-        # Per-panel titles with current value
-        ax_cpu.set_title(f"CPU: {cpu:.0f}%")
-        ax_ram.set_title(f"RAM: {ram_used_gb:.1f} / {ram_total_gb:.1f} GB "
-                         f"({ram_used_gb/ram_total_gb*100:.0f}%)")
-        if gpu is not None:
-            ax_gpu.set_title(f"GPU util: {gpu['util']:.0f}%")
-            ax_vram.set_title(f"VRAM: {gpu['mem_used']:.2f} / {gpu['mem_total']:.2f} GB")
-            fig.suptitle(
-                f"{datetime.now():%H:%M:%S}   "
-                f"GPU temp {gpu['temp']:.0f}°C  |  "
-                f"power {gpu['power']:.0f} / {gpu['power_lim']:.0f} W  |  "
-                f"fan {gpu['fan']:.0f}%",
-                fontsize=10,
+            lines.append(f"CPU       {bar(cpu/100, w)}  {cpu:3.0f}%")
+            lines.append(
+                f"RAM       {bar(ram_used_gb/ram_total_gb, w)}  "
+                f"{ram_used_gb:.1f} / {ram_total_gb:.1f} GB  "
+                f"({ram_used_gb/ram_total_gb*100:.0f}%)"
             )
-        else:
-            ax_gpu.set_title("GPU util: n/a")
-            ax_vram.set_title("VRAM: n/a")
-            fig.suptitle(f"{datetime.now():%H:%M:%S}   GPU: nvidia-smi not available",
-                         fontsize=10)
 
-        fig.canvas.draw()
-        fig.canvas.flush_events()
-        plt.pause(0.05)
+            term_w = shutil.get_terminal_size((100, 20)).columns
+            for line in lines:
+                # Clear line then write, so shorter lines don't leave stale chars
+                sys.stdout.write("\033[2K" + line[:term_w] + "\n")
+            sys.stdout.flush()
 
-        if not plt.fignum_exists(fig.number):
-            print("Window closed. Exiting.")
-            return
-
-        time.sleep(max(0.0, args.refresh - 0.05))
+            time.sleep(args.refresh)
+    except KeyboardInterrupt:
+        sys.stdout.write("\nStopped.\n")
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":

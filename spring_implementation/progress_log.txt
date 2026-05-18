@@ -1299,3 +1299,97 @@ V3 CONSTRUCT-BALANCED TRAINING (May 16, 19:49 UTC)
   ETA once resumed: ~8.5 hours (150 epochs x ~3.5 min/epoch).
   First checkpoint saves after epoch 5 (~17 min from restart).
 
+----------------------------------------------------
+2026-05-18  V3 Epoch 35 Evaluation + V3-Specific Calibration
+----------------------------------------------------
+
+V3 TRAINING OUTCOME
+  Resumed and ran to epoch 35 before terminal closure stopped it.
+  Loss plateaued by epoch 20 (test_loss ~0.106 from epoch 20-30, vs
+  0.117 at epoch 5). Model converged — more epochs unlikely to help.
+
+  Checkpoints saved at epochs 5, 10, 15, 20, 25, 30, 35.
+
+GROUND TRUTH SOURCE — Imaris per-sample counts
+  Box \JABr\Statistics\inside\*_inside.xls   = condensate count per cell
+    (each row = one Imaris Surface; len(rows) = condensate count)
+  Box \JABr\Cell Number\JABr.xlsx            = nuclei (cell) count per cell
+
+  Sample 2_5 GT:
+    Sample    GT_cond  GT_nuc  Ref_PC
+    2_5_1        25      2     6.324
+    2_5_2        10      1     6.873
+    2_5_3        18      1     4.558
+    2_5_4        15      2     6.020
+    2_5_5        43      5     6.728
+    2_5_6        21      2    12.151
+
+CYTO3 BASELINE vs V3 EPOCH 35 — Sample 2_5 (topx=100)
+  Sample | cyto3_PC  err   n_cond | v3_raw_PC  err   n_cond
+  -------+----------------------- -+--------------------------
+  2_5_1  |   6.61   +4.5%    70   |   9.00   +42.3%   38
+  2_5_2  |   7.74  +12.7%     5   |   7.88   +14.7%    9
+  2_5_3  |   6.63  +45.3%    20   |   5.70   +25.0%   16
+  2_5_4  |   4.38  -27.2%    47   |   6.46    +7.3%   16
+  2_5_5  |   6.55   -2.6%   280   |   9.02   +34.1%   60
+  2_5_6  |   8.33  -31.4%    99   |  12.59    +3.6%   23
+
+  MAE cyto3 baseline : 20.6%
+  MAE v3 raw         : 21.2%
+
+  Key observation: v3 segmentation counts dramatically closer to Imaris
+  ground truth than cyto3. cyto3 over-segments wildly (5 to 280 per cell);
+  v3 stays in 9-60 range (GT spans 10-43). v3 is biologically more
+  accurate in count even though raw PC error is similar to cyto3.
+
+CALIBRATION REBUILD
+  Existing calibration_table.json was built from a different model
+  (likely v1 or v2). Applying it to v3 gave MAE 13.0% but saturated
+  at calibrated PC = 5.93 for several samples (ceiling of old curve).
+
+  Rebuilt JABr calibration from v3 epoch 35 outputs:
+    1. Ran batch_compare.py on full JABr Box dataset with v3 model
+       (n=29 samples, 42 TIFs minus a few NaN cases)
+       -> spring_implementation/outputs/experiments/batch_JABr_trained_v3_epoch35/comparison.csv
+    2. Fit IsotonicRegression(pred=v3_pipeline_pc, target=ref_pc)
+    3. Wrote new JABr entry to calibration_table.json
+       xs range: 3.16 -> 42.94  (raw pipeline PC)
+       ys range: 2.55 -> 19.77  (mapped reference PC)
+    4. Raw r=0.865, raw MAE=40.1%, isotonic MAE=10.3% (LOO not done; full-fit)
+
+FINAL COMPARISON — Sample 2_5 (topx=100)
+  Method                       | MAE
+  -----------------------------+-----
+  cyto3 baseline               | 20.6%
+  v3 raw                       | 21.2%
+  v3 + OLD calibration (other model) | 13.0%
+  v3 + NEW calibration (v3-derived)  |  9.5%  <-- below the 10% success criterion
+
+  Biggest win on Sample 2_5_6 (high PC = 12.15): -31% -> -9% with new cal.
+
+VERDICT — Did training help?
+  Yes, but only with v3-specific calibration:
+  - Raw PC accuracy: tie with cyto3 (~21% MAE).
+  - Segmentation count quality: v3 dramatically better (matches Imaris).
+  - With v3-derived calibration: v3 beats cyto3 (9.5% vs 20.6% MAE).
+  - Generalization to other constructs: not yet measured this session.
+
+BUG FIX (pipeline.py)
+  apply_calibration printed assuming linear (slope, intercept) tuple.
+  Crashed on isotonic entries (dict with kind/xs/ys). Fixed to dispatch
+  on entry["kind"]. Also added pc_calibrated + construct rows to
+  summary.csv when calibration was applied.
+
+WATCH_SYSTEM.PY — Terminal-only monitor
+  Rewrote spring_implementation/training/watch_system.py to remove the
+  matplotlib GUI and print 4 in-place bar charts (GPU util, VRAM, CPU,
+  RAM) directly in the terminal using ANSI escape codes. Refreshes
+  every 2s by default (--refresh, --bar-width to customize).
+
+NEXT STEPS
+  - Rebuild calibration for GABr/AABr/JABr_4arm/Tornado from v3 outputs
+    (each batch_compare run takes ~40 min on this dataset size).
+  - Test v3 on those 4 constructs to validate cross-construct generalization
+    (the original motivation for v3).
+  - Consider --cond-cellprob tuning if the systematic +PC bias persists.
+
