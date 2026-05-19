@@ -7,6 +7,23 @@ tags: [reference, index]
 Partition coefficient reference measurements from Box › Condensate Volume Quantification.
 Each node contains cytoplasmic and/or nuclear tables (condensate density, dilute density, partition coefficient).
 
+Source layout (per construct in Box):
+- `Cut ROI/*.tif` — 2-channel (nuclei + condensate) Z-stacks; pipeline input
+- `Imaris file/*.ims` — Imaris source with surface annotations
+- `Statistics-cleaned/inside/*_inside.xls` — per-condensate-surface measurements (used for ground-truth condensate counts)
+- `Cell Number/<construct>.xlsx` — analyst's per-ROI cell count
+- `<construct>_Partition coefficient_nuclear.csv` — per-ROI reference PC (one row per ROI; multi-cell ROIs aggregated)
+
+For head-to-head pipeline-vs-reference comparison, see [[../JABr Experiments|JABr Experiments]] (only construct with pipeline evaluation so far).
+
+## Pipeline Evaluation Status
+
+| Construct                         | Pipeline run             | Best honest MAE                       | Calibration fit |
+| --------------------------------- | ------------------------ | ------------------------------------- | --------------- |
+| JABr                              | ✅ Cellpose V3 + blob_log | **14.7%** (blob_log + linear, LOO-CV) | isotonic table  |
+| GABr / AABr / JABr_4arm / Tornado | ⏳ not yet run on V3      | —                                     | needs rebuild   |
+| Others                            | ⏳ not yet                | —                                     | —               |
+
 ## Constructs with Data
 
 | Construct | Cytoplasmic (n) | Nuclear (n) |
