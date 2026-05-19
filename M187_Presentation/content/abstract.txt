@@ -1,9 +1,9 @@
 ABSTRACT
 
-Biomolecular condensates are phase-separated compartments that concentrate regulatory molecules. Quantifying their properties (e.g., partition coefficient, PC) is critical for understanding their function, but manual measurements are labor-intensive and subjective. We developed an automated image analysis pipeline based on Cellpose 3 and the Fabrini partition coefficient formula to segment RNA-aptamer condensates (JABr system) and compute PC from confocal microscopy stacks.
+This project develops a fully automated, reproducible Python-based image analysis pipeline for quantifying biomolecular condensates in fluorescence microscopy Z-stacks. Using the JABr RNA-aptamer system, the pipeline segments nuclei and condensates from multi-channel confocal images via Cellpose 3 in full 3D mode (do_3D=True), then computes the partition coefficient (PC)—a key physical measure of condensate concentration—using the Fabrini method with background subtraction.
 
-Key innovation: A three-step refinement (background subtraction, connected-component nuclei cleanup, and robust dilute-phase density estimation) that enabled our automated pipeline to match manual reference PC values for the first time (6.297 vs 6.32, −0.4% error).
+Three critical refinements enable the pipeline to match manual reference PC values (6.297 vs 6.32, −0.4% error, first automated achievement): (1) background subtraction to remove camera baseline, (2) connected-component post-processing to collapse Cellpose's fragmented nuclei labels into true contiguous regions, and (3) robust dilute-phase density estimation via averaging the 50 lowest-intensity patches rather than single-point sampling.
 
-Results show the pipeline accurately quantifies condensate properties and has been validated on 30 cells with good correlation to manual Imaris measurements (r = 0.735). This work provides a reproducible, high-throughput framework for condensate analysis in the Franco lab and beyond.
+Quantitative outputs include per-object measurements (area, centroid, intensity), 3D volumes, and the background-subtracted PC alongside segmentation masks. The pipeline runs in ~1 minute per cell on CPU and enables high-throughput, reproducible analysis of condensate biophysics for future extensions to other constructs and time-lapse dynamics.
 
 Keywords: image segmentation, condensate quantification, partition coefficient, Cellpose, 3D microscopy
