@@ -18,10 +18,10 @@
         }
 
         .poster {
-            max-width: 1440px;
+            width: 1440px;
+            height: 1920px;
             margin: 0 auto;
             background-color: white;
-            aspect-ratio: 3 / 4; /* 36" x 48" ratio */
             display: flex;
             flex-direction: column;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -29,32 +29,34 @@
             font-size: 16px;
             line-height: 1.5;
             color: #333;
+            box-sizing: border-box;
         }
 
         /* HEADER */
         .header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #003366;
-            padding-bottom: 20px;
+            margin-bottom: 25px;
+            border-bottom: 4px solid #003366;
+            padding-bottom: 15px;
+            flex-shrink: 0;
         }
 
         .header h1 {
-            font-size: 52px;
+            font-size: 56px;
             font-weight: bold;
             color: #003366;
-            margin-bottom: 10px;
-            line-height: 1.2;
+            margin-bottom: 8px;
+            line-height: 1.1;
         }
 
         .header p {
-            font-size: 24px;
+            font-size: 26px;
             color: #555;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         .authors {
-            font-size: 20px;
+            font-size: 22px;
             color: #666;
             font-style: italic;
         }
@@ -62,10 +64,11 @@
         /* MAIN CONTENT GRID */
         .content {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            gap: 25px;
+            grid-template-columns: 1.2fr 1.2fr 1.2fr 1.4fr;
+            grid-template-rows: auto auto;
+            gap: 20px;
             flex: 1;
-            overflow: hidden;
+            min-height: 0;
         }
 
         /* LEFT COLUMN */
@@ -87,23 +90,23 @@
         }
 
         .box h2 {
-            font-size: 28px;
+            font-size: 26px;
             color: #003366;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             font-weight: bold;
         }
 
         .box p {
             font-size: 15px;
-            line-height: 1.6;
+            line-height: 1.5;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .box ul, .box ol {
-            margin-left: 20px;
+            margin-left: 18px;
             font-size: 15px;
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .box li {
@@ -113,36 +116,41 @@
         /* INTRODUCTION */
         .introduction {
             grid-column: 1 / 2;
+            grid-row: 1 / 3;
         }
 
         /* CENTER-LEFT COLUMN - MATERIALS & METHODS */
         .center-left {
             grid-column: 2 / 3;
+            grid-row: 1 / 3;
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 18px;
         }
 
         /* CENTER-RIGHT COLUMN - RESULTS */
         .center-right {
             grid-column: 3 / 4;
+            grid-row: 1 / 3;
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 18px;
         }
 
         /* RIGHT COLUMN */
         .right-column {
             grid-column: 4 / 5;
+            grid-row: 1 / 3;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
 
         .right-column > div {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
 
         /* FIGURE PLACEHOLDER */
@@ -150,15 +158,16 @@
             background-color: #f5f5f5;
             border: 2px dashed #999;
             border-radius: 4px;
-            padding: 12px;
+            padding: 10px;
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             color: #666;
-            min-height: 150px;
+            min-height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex: 1;
+            overflow: hidden;
         }
 
         .figure img {
@@ -168,9 +177,9 @@
         }
 
         .figure-caption {
-            font-size: 14px;
+            font-size: 13px;
             color: #666;
-            margin-top: 10px;
+            margin-top: 8px;
             font-style: italic;
             text-align: center;
         }
@@ -178,44 +187,44 @@
         /* CALLOUT BOX - Three Key Improvements */
         .improvement-box {
             background-color: #FFF4E6;
-            border-left: 5px solid #FF9933;
-            padding: 15px;
+            border-left: 4px solid #FF9933;
+            padding: 12px;
             border-radius: 4px;
-            margin-bottom: 12px;
-            font-size: 14px;
+            margin-bottom: 10px;
+            font-size: 13px;
         }
 
         .improvement-box h4 {
             color: #FF6600;
             font-weight: bold;
-            margin-bottom: 8px;
-            font-size: 16px;
+            margin-bottom: 6px;
+            font-size: 15px;
         }
 
         .improvement-box p {
-            font-size: 14px;
+            font-size: 13px;
             color: #333;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
 
         /* RESULTS SECTION */
         .results-table {
             width: 100%;
-            font-size: 13px;
+            font-size: 12px;
             border-collapse: collapse;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .results-table th {
             background-color: #003366;
             color: white;
-            padding: 8px;
+            padding: 6px;
             text-align: left;
             font-weight: bold;
         }
 
         .results-table td {
-            padding: 8px;
+            padding: 6px;
             border-bottom: 1px solid #ddd;
         }
 
@@ -227,32 +236,32 @@
         .highlight-metric {
             background-color: #E6F2FF;
             border: 2px solid #003366;
-            padding: 15px;
+            padding: 12px;
             border-radius: 4px;
             text-align: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .highlight-metric .value {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: bold;
             color: #003366;
         }
 
         .highlight-metric .label {
-            font-size: 14px;
+            font-size: 13px;
             color: #666;
-            margin-top: 5px;
+            margin-top: 4px;
         }
 
         /* CONCLUSION BOX */
         .conclusion-item {
             background-color: #E6F9F2;
-            border-left: 5px solid #009900;
-            padding: 12px;
-            margin-bottom: 12px;
+            border-left: 4px solid #009900;
+            padding: 10px;
+            margin-bottom: 8px;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .conclusion-item strong {
@@ -261,16 +270,17 @@
 
         /* FOOTER */
         .footer {
-            margin-top: 30px;
-            padding-top: 20px;
+            margin-top: 20px;
+            padding-top: 12px;
             border-top: 2px solid #ddd;
             text-align: center;
-            font-size: 13px;
+            font-size: 12px;
             color: #666;
+            flex-shrink: 0;
         }
 
         .footer p {
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
 
         /* PRINT STYLES */
@@ -290,6 +300,14 @@
             }
         }
 
+        /* FIGURE SECTION HEADERS */
+        .figure-section-header {
+            font-size: 18px;
+            color: #003366;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
         /* RESPONSIVE */
         @media (max-width: 1600px) {
             .poster {
@@ -303,6 +321,14 @@
 
             .box h2 {
                 font-size: 24px;
+            }
+        }
+
+        @media print {
+            .poster {
+                width: 100%;
+                height: auto;
+                aspect-ratio: auto;
             }
         }
 
@@ -434,7 +460,7 @@
             <div class="right-column">
                 <!-- FIGURE 1: RESULTS -->
                 <div>
-                    <h3 style="font-size: 20px; color: #003366; margin-bottom: 8px;">Pipeline Output</h3>
+                    <div class="figure-section-header">Pipeline Output</div>
                     <div class="figure">
                         <img src="figures/results/results.png" alt="Pipeline output visualization">
                     </div>
@@ -443,29 +469,29 @@
 
                 <!-- FIGURE 2: SEGMENTATION QUALITY - BINARY MASKS -->
                 <div>
-                    <h3 style="font-size: 20px; color: #003366; margin-bottom: 8px;">Segmentation Quality</h3>
+                    <div class="figure-section-header">Segmentation Quality</div>
                     <div class="figure">
                         <img src="figures/results/binary_masks.png" alt="Binary segmentation masks showing nuclei and condensates">
                     </div>
-                    <div class="figure-caption">Left: nuclei mask (white). Middle: condensate mask (white). Right: merged with raw image (z=20)</div>
+                    <div class="figure-caption">Left: nuclei mask. Middle: condensate mask. Right: merged (z=20)</div>
                 </div>
 
                 <!-- FIGURE 3: RAW ROI IMAGE -->
                 <div>
-                    <h3 style="font-size: 20px; color: #003366; margin-bottom: 8px;">Raw ROI Image</h3>
+                    <div class="figure-section-header">Raw ROI Image</div>
                     <div class="figure">
                         <img src="figures/results/raw_roi_image.png" alt="Raw fluorescence image of JABr Sample2_5_1">
                     </div>
-                    <div class="figure-caption">JABr Sample2_5_1: nuclei (blue, Ch1) and condensates (green, Ch2)</div>
+                    <div class="figure-caption">JABr Sample2_5_1: nuclei (blue) and condensates (green)</div>
                 </div>
 
                 <!-- FIGURE 4: BACKGROUND SUBTRACTED -->
                 <div>
-                    <h3 style="font-size: 20px; color: #003366; margin-bottom: 8px;">Partition Coefficient Calculation</h3>
+                    <div class="figure-section-header">PC Calculation</div>
                     <div class="figure">
                         <img src="figures/results/background_subtracted.png" alt="Background-subtracted regions for PC calculation">
                     </div>
-                    <div class="figure-caption">Condensate voxels (green), dilute phase (blue), background (brown) after B subtraction</div>
+                    <div class="figure-caption">Condensate voxels (green), dilute phase (blue), background (brown)</div>
                 </div>
 
                 <!-- CONCLUSION -->
