@@ -1,0 +1,36 @@
+ACKNOWLEDGEMENTS
+
+We thank:
+
+Dr. Elisa Franco (PI), UCLA Department of Bioengineering
+  → Research direction, mentorship, provision of reference PC data and Imaris measurements
+  → Invaluable discussions on condensate biology and quantification methods
+
+Shiyi Zheng (Lab manager)
+  → Manual ImageJ/Imaris measurements that provided ground-truth reference PC values
+  → Consultation on condensate morphology and segmentation challenges
+
+UCLA Molecular and Cellular Biology Imaging Center
+  → Confocal microscopy training and facility support
+  → Access to high-resolution imaging equipment
+
+Cellpose 3 Team (Stringer et al.)
+  → Open-source deep learning segmentation model
+  → Exceptional 3D support that made this project feasible
+
+References Cited:
+  • Fabrini et al. (2023) — Partition coefficient formula for condensate analysis
+  • Stringer et al. (2021) — Cellpose: A generalist algorithm for cellular segmentation
+  • scikit-image contributors — Connected-component analysis and regionprops
+
+Funding:
+  This work was funded by NSF CAREER Award MCB-1846821 and UC Los Angeles.
+
+Disclaimer:
+  Code and results are provided as-is for educational and research purposes.
+  Partition coefficient measurements are sensitive to segmentation quality;
+  validation on new constructs is recommended before publication.
+
+Contact:
+  Daniel Chang, danielchang1@g.ucla.edu
+  Dr. Elisa Franco, efranco@ucla.edu

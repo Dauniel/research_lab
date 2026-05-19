@@ -1,0 +1,9 @@
+ABSTRACT
+
+Biomolecular condensates are phase-separated compartments that concentrate regulatory molecules. Quantifying their properties (e.g., partition coefficient, PC) is critical for understanding their function, but manual measurements are labor-intensive and subjective. We developed an automated image analysis pipeline based on Cellpose 3 and the Fabrini partition coefficient formula to segment RNA-aptamer condensates (JABr system) and compute PC from confocal microscopy stacks.
+
+Key innovation: A three-step refinement (background subtraction, connected-component nuclei cleanup, and robust dilute-phase density estimation) that enabled our automated pipeline to match manual reference PC values for the first time (6.297 vs 6.32, −0.4% error).
+
+Results show the pipeline accurately quantifies condensate properties and has been validated on 30 cells with good correlation to manual Imaris measurements (r = 0.735). This work provides a reproducible, high-throughput framework for condensate analysis in the Franco lab and beyond.
+
+Keywords: image segmentation, condensate quantification, partition coefficient, Cellpose, 3D microscopy

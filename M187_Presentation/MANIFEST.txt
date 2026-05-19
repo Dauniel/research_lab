@@ -1,0 +1,164 @@
+═══════════════════════════════════════════════════════════════════════════════
+M187 RESEARCH POSTER — COMPLETE MATERIALS MANIFEST
+═══════════════════════════════════════════════════════════════════════════════
+
+PRESENTATION TITLE:
+  Automated Segmentation and Partition Coefficient Analysis of RNA-Aptamer Condensates
+
+AUTHORS:
+  Daniel Chang, Elisa Franco (PI) | UCLA Department of Bioengineering
+
+KEY ACHIEVEMENT:
+  PC = 6.297 (pipeline) vs 6.32 (reference) = −0.4% error
+  First automated replication of manual reference PC value using 3D segmentation
+  
+═══════════════════════════════════════════════════════════════════════════════
+
+DIRECTORY STRUCTURE:
+
+M187_Presentation/
+│
+├── README.md                      Main overview + key metrics table
+├── GETTING_STARTED.md             Step-by-step poster creation guide
+├── POSTER_OUTLINE.md              Layout template (4-column format)
+├── MANIFEST.txt                   This file
+│
+├── content/                       ✓ All text sections ready to copy
+│   ├── abstract.txt               (200 words, highlights key result)
+│   ├── introduction.txt           (JABr system, reference standard, motivation)
+│   ├── methods.txt                (6-step pipeline, 3 key improvements)
+│   ├── results.txt                (PC matching + batch validation)
+│   ├── conclusion.txt             (Achievements, advantages, next steps)
+│   └── acknowledgements.txt       (Credits, funding, references)
+│
+├── figures/                       ✓ All images and data files
+│   │
+│   ├── results/                   Main results from April 30 validation
+│   │   ├── results.png            6-step pipeline output visualization
+│   │   ├── summary.csv            PC = 6.297, all key metrics
+│   │   ├── batch_comparison_scatter.png   Validation across 30 JABr cells
+│   │   ├── batch_JABr_final_comparison.csv
+│   │   ├── condensate_measurements.csv    Per-condensate metrics (186 objects)
+│   │   ├── condensate_volumes.csv
+│   │   ├── nuclei_measurements.csv        Per-nucleus metrics (5 nuclei)
+│   │   └── nuclei_volumes.csv
+│   │
+│   └── pipeline/                  Step-by-step visualizations
+│       ├── mask_overlay.png       Segmentation quality (masks on raw)
+│       ├── raw_midZ.png           Raw fluorescence at mid-Z slice
+│       └── intensity_hist.png     Intensity distribution validation
+│
+├── layouts/                       Template directory (to be filled)
+│   └── (PowerPoint/Illustrator template goes here)
+│
+└── pipeline.py                    Main pipeline code (reference)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK START:
+
+1. Read GETTING_STARTED.md for poster creation workflow
+2. Copy text from content/ directory into your design tool
+3. Arrange figures/ images in poster layout (follow POSTER_OUTLINE.md)
+4. Emphasize three key improvements as callout boxes
+5. Print at 36" × 48" (standard academic poster size)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY NUMBERS FOR POSTER:
+
+Single-ROI Validation (April 30, 2026):
+  Partition Coefficient:    6.297 (pipeline) vs 6.32 (reference)
+  Error:                    −0.4% ✓
+  Condensates detected:     186
+  Nuclei detected:          5 (after CC cleanup)
+
+Batch Validation (30 JABr cells):
+  Pearson r:                0.735
+  RMSE:                     2.815
+  Mean error:               +2.8%
+  Well-calibrated (< 5%):   7 out of 29 cells
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FIGURES FOR POSTER (recommended):
+
+Essential (3+ figures):
+  1. Raw image + segmentation overlay (mask_overlay.png)
+     → Shows segmentation quality visually
+  
+  2. PC comparison chart
+     → Pipeline PC vs Reference PC (main result)
+     → Could create from summary.csv or batch_comparison_scatter.png
+  
+  3. Batch validation scatter (batch_comparison_scatter.png)
+     → Validates approach across 30 cells
+
+Optional:
+  4. Pipeline workflow diagram (text box with 6 steps + arrows)
+  5. Intensity histogram (intensity_hist.png)
+     → Validates PC calculation methodology
+  6. Raw mid-Z image (raw_midZ.png)
+     → Shows condensate morphology
+
+═══════════════════════════════════════════════════════════════════════════════
+
+THREE KEY IMPROVEMENTS (highlight as callout boxes):
+
+1. BACKGROUND SUBTRACTION (Fabrini et al.)
+   PC = density_condensed / density_dilute
+   (where densities are computed after subtracting minimum voxel intensity)
+   → Largest single accuracy jump (2.04 → 3.33 PC)
+
+2. CONNECTED-COMPONENT NUCLEI CLEANUP
+   Cellpose 76 instance labels → 3D connected components → 5 true nuclei
+   → Removes internal fragments from condensate texture interference
+   → Cleans up dilute-phase pixel selection
+
+3. ROBUST DILUTE-PHASE DENSITY
+   Find all ~88,000 valid 10×10×10 patches
+   Sort by intensity, average the lowest 50
+   → Eliminates seed-dependent PC swing (4.3 to 6.0 → stable 6.297)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DESIGN RECOMMENDATIONS:
+
+Color scheme (suggested):
+  • Title/headers: Dark blue (#003366)
+  • Sections: Light blue backgrounds (#E6F2FF)
+  • Results: Orange highlights (#FF9933)
+  • Validation: Green accents (#009900)
+
+Typography:
+  • Title: 48 pt, bold
+  • Section headers: 36 pt, bold
+  • Body text: 20–24 pt
+  • Figure captions: 18 pt
+
+Layout balance:
+  • ~40% text, ~60% figures
+  • 4-column layout (see POSTER_OUTLINE.md)
+  • Leave 1-inch margins on all sides
+
+═══════════════════════════════════════════════════════════════════════════════
+
+NEXT STEPS AFTER PRINTING:
+
+1. Laminate poster for durability (if presenting in-person)
+2. Bring printed copies + your slides to the poster session
+3. Prepare 30-second elevator pitch highlighting −0.4% error achievement
+4. Be ready to explain three key improvements
+5. Have USB drive with high-res images (300 ppi) in case questions arise
+
+═══════════════════════════════════════════════════════════════════════════════
+
+CONTACT / QUESTIONS:
+
+Daniel Chang: danielchang1@g.ucla.edu
+Dr. Elisa Franco: efranco@ucla.edu
+
+All code available at: github.com/Dauniel/research_lab/spring_implementation/
+
+Last updated: 2026-05-18
+═══════════════════════════════════════════════════════════════════════════════

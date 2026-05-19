@@ -1,0 +1,46 @@
+CONCLUSION
+
+We have successfully developed an automated pipeline for quantifying biomolecular condensate properties (partition coefficient, density, volume) from 3D confocal microscopy. The pipeline now achieves PC accuracy that matches manual reference measurements (−0.4% error on the benchmark sample), validating our approach.
+
+Key Achievements:
+  ✓ PC = 6.297 vs 6.32 reference (−0.4% error, first automated match)
+  ✓ Reproducible and fully deterministic results across runs
+  ✓ Batch validation on 30 cells with r = 0.735, mean error = +2.8%
+  ✓ Fast throughput: ~1 minute per cell on CPU (seconds on GPU)
+  ✓ Biologically motivated at each step (3D segmentation, background subtraction, patch selection)
+
+Three Critical Innovations:
+  1. Background subtraction (Fabrini et al. formula) — largest impact on accuracy
+  2. Connected-component nuclei cleanup — removes segmentation artifacts
+  3. Robust dilute-phase density from lowest-intensity patch average — stable and meaningful
+
+Advantages Over Manual Measurement:
+  • Objective, rule-based segmentation (no hand-drawing)
+  • High throughput: 30 cells in ~30 minutes vs 3–4 hours manual
+  • Reproducible across runs and operators
+  • Quantifiable uncertainty (RMSE, error metrics available)
+  • Extensible to new constructs via model retraining or transfer learning
+
+Remaining Challenges:
+  • Segmentation limitations on wide FOVs or multi-cell fields
+  • Per-construct variation in condensate morphology (some constructs have dimmer, smaller condensates)
+  • Boundary tightness affects PC calculation; model is calibrated for cyto3 masks
+
+Future Directions:
+  1. Test on other RNA-aptamer constructs (AABr, JABr_4arm, GwtBr, etc.)
+  2. Consider custom Cellpose model trained on reference segmentation masks
+  3. Adaptive calibration: per-construct PC scaling factors
+  4. GUI deployment for lab-wide use (partially implemented)
+  5. Extension to live-cell time-lapse imaging for condensate dynamics
+
+Biological Impact:
+  This work enables rapid, reproducible quantification of condensate concentrations, a key physical parameter for understanding their function. The pipeline will accelerate research into phase separation and condensate-mediated regulation in the Franco lab and beyond.
+
+Reproducibility:
+  All code, sample outputs, and documentation are available in:
+    github.com/Dauniel/research_lab/spring_implementation/
+
+  Pipeline is straightforward to use:
+    python pipeline.py --roi <multi-channel.tif> --output <dir>
+    python batch_compare.py --construct-dir <folder> --output <dir>
+    python run_gui.py  # for point-and-click interface

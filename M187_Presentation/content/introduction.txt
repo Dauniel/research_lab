@@ -1,0 +1,24 @@
+INTRODUCTION
+
+Biomolecular Condensates
+Biomolecular condensates are liquid-liquid or liquid-solid phase-separated compartments that form inside cells. They concentrate proteins, RNA, and other molecules, enabling rapid and efficient regulation of cellular processes. Understanding their physical properties—particularly the partition coefficient (PC), which measures how much more concentrated a molecule is inside the condensate relative to the surrounding cytoplasm—is essential for decoding their regulatory roles.
+
+The JABr Aptamer System
+JABr is a fluorescent RNA aptamer that binds to the small molecule DFHBI-1T, producing bright green fluorescence when bound. This system allows direct visualization of condensates in living cells without antibodies. Our lab uses JABr to study endogenous condensates in yeast and mammalian cells.
+
+Current Bottleneck
+Manual measurement of PC requires:
+  - Hand-drawing condensate boundaries in ImageJ (hours per cell)
+  - Sampling dilute-phase intensity from manually selected regions
+  - Subjective decisions about mask tightness and background correction
+  - Poor reproducibility across technicians
+
+Reference Standard
+The reference PC for JABr Sample 2_5_1 is 6.32 (measured manually by Imaris software with background subtraction, published in Fabrini et al.). This is our ground-truth benchmark.
+
+Goal
+Develop a fully automated pipeline that:
+  1. Segments condensates and nuclei in 3D from confocal stacks
+  2. Computes PC using the same formula as the reference
+  3. Achieves &lt;5% error compared to manual measurements
+  4. Is fast enough to process dozens of cells per hour
