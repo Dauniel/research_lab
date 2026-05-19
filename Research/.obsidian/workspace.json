@@ -13,12 +13,22 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Welcome.md",
+                "file": "Experiments.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Welcome"
+              "title": "Experiments"
+            }
+          },
+          {
+            "id": "7f8b6b16430d3410",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -183,31 +193,33 @@
       "bases:Create new base": false
     }
   },
-  "active": "14e9553e3f5ccdcb",
+  "active": "cab063cd8be1ea4d",
   "lastOpenFiles": [
-    "Training Pipeline.md",
-    "AABr Experiments.md",
+    "Tornado Experiments.md",
     "JABr Original.md",
-    "JABr Trained.md",
-    "Calibration.md",
+    "JABr Overlap.md",
     "JABr Trained Tuned.md",
+    "JABr Trained.md",
+    "Sample3 3 15 Trained Tuned.md",
+    "Training Pipeline.md",
+    "GABr Experiments.md",
+    "AABr Experiments.md",
+    "reference_data/Reference Data Index.md",
+    "reference_data/JABr Reference Data.md",
+    "Model Variants.md",
+    "Analysis.md",
+    "Batch Comparison.md",
+    "Calibration.md",
+    "create a link.md",
+    "Welcome.md",
     "JABr Experiments.md",
     "Experiments.md",
-    "Model Variants.md",
     "Diagnostic Outputs.md",
-    "Sample3 3 15 Trained Tuned.md",
     "Sample3 3 3 Trained.md",
     "Sample3 3 3 Cyto3.md",
     "JABr 4-Arm.md",
-    "GABr Experiments.md",
-    "create a link.md",
-    "Batch Comparison.md",
-    "Welcome.md",
     "JABr Largest Nuc.md",
     "JABr Central.md",
-    "JABr Max Overlap.md",
-    "Tornado Experiments.md",
-    "Diameter Sweep.md",
-    "Analysis.md"
+    "JABr Max Overlap.md"
   ]
 }
