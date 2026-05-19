@@ -25,262 +25,357 @@
             display: flex;
             flex-direction: column;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            font-size: 16px;
-            line-height: 1.5;
+            font-size: 14px;
+            line-height: 1.4;
             color: #333;
             box-sizing: border-box;
         }
 
         /* HEADER */
         .header {
+            background: white;
+            padding: 30px 40px;
             text-align: center;
-            margin-bottom: 25px;
-            border-bottom: 4px solid #003366;
-            padding-bottom: 15px;
+            border-bottom: 3px solid #003366;
             flex-shrink: 0;
         }
 
         .header h1 {
-            font-size: 56px;
+            font-size: 48px;
             font-weight: bold;
             color: #003366;
-            margin-bottom: 8px;
-            line-height: 1.1;
-        }
-
-        .header p {
-            font-size: 26px;
-            color: #555;
             margin-bottom: 5px;
+            line-height: 1.15;
         }
 
-        .authors {
-            font-size: 22px;
+        .header .authors {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .header .institution {
+            font-size: 16px;
             color: #666;
             font-style: italic;
         }
 
-        /* MAIN CONTENT GRID */
-        .content {
+        /* MAIN GRID LAYOUT */
+        .main-content {
             display: grid;
-            grid-template-columns: 1.2fr 1.2fr 1.2fr 1.4fr;
-            grid-template-rows: auto auto;
-            gap: 20px;
+            grid-template-columns: 1fr 1fr 1.3fr 1.5fr;
+            gap: 25px;
+            padding: 30px 40px;
             flex: 1;
             min-height: 0;
         }
 
-        /* LEFT COLUMN */
-        .left-column {
+        /* COLUMN 1: ABSTRACT + INTRODUCTION */
+        .column-1 {
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 20px;
         }
 
-        /* ABSTRACT BOX */
+        /* COLUMN 2: PIPELINE OVERVIEW + 3 KEY IMPROVEMENTS */
+        .column-2 {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* COLUMN 3: MAIN RESULT + METRICS */
+        .column-3 {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* COLUMN 4: FIGURES + CONCLUSION + ACKNOWLEDGEMENTS */
+        .column-4 {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-height: 0;
+        }
+
+        /* BOX STYLING */
         .box {
             background-color: #E6F2FF;
             border-left: 5px solid #003366;
-            padding: 20px;
-            border-radius: 4px;
+            padding: 18px;
+            border-radius: 3px;
             display: flex;
             flex-direction: column;
             overflow-y: auto;
         }
 
         .box h2 {
-            font-size: 26px;
+            font-size: 20px;
             color: #003366;
             margin-bottom: 10px;
             font-weight: bold;
         }
 
-        .box p {
-            font-size: 15px;
-            line-height: 1.5;
-            color: #333;
+        .box h3 {
+            font-size: 16px;
+            color: #003366;
             margin-bottom: 8px;
+            margin-top: 8px;
+            font-weight: bold;
         }
 
-        .box ul, .box ol {
+        .box p {
+            font-size: 13px;
+            line-height: 1.45;
+            color: #333;
+            margin-bottom: 7px;
+        }
+
+        .box ol, .box ul {
             margin-left: 18px;
-            font-size: 15px;
-            line-height: 1.5;
+            font-size: 13px;
+            line-height: 1.45;
         }
 
         .box li {
+            margin-bottom: 5px;
+        }
+
+        /* ORANGE BOX - THREE KEY IMPROVEMENTS */
+        .improvements-box {
+            background-color: #FFF4E6;
+            border-left: 5px solid #FF9933;
+        }
+
+        .improvements-box h2 {
+            color: #FF6600;
+        }
+
+        .improvement-item {
+            background-color: #FFEBCC;
+            border-left: 3px solid #FF9933;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+        }
+
+        .improvement-item h4 {
+            color: #FF6600;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .improvement-item p {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        /* MAIN RESULT SECTION */
+        .main-result-box {
+            background-color: #E6F2FF;
+            border: 2px solid #003366;
+            padding: 20px;
+            border-radius: 3px;
+            text-align: center;
+        }
+
+        .pc-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #003366;
+            margin-bottom: 10px;
+        }
+
+        .pc-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .pc-reference {
+            font-size: 32px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .pc-reference-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .error-box {
+            background-color: #90EE90;
+            padding: 15px;
+            border-radius: 3px;
+            text-align: center;
+        }
+
+        .error-value {
+            font-size: 32px;
+            color: #009900;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .error-note {
+            font-size: 12px;
+            color: #333;
+        }
+
+        /* METRICS TABLE */
+        .metrics-table {
+            background-color: #2a2a2a;
+            color: white;
+            padding: 15px;
+            border-radius: 3px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .metrics-table .metric-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
             margin-bottom: 8px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 8px;
         }
 
-        /* INTRODUCTION */
-        .introduction {
-            grid-column: 1 / 2;
-            grid-row: 1 / 3;
+        .metrics-table .metric-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
 
-        /* CENTER-LEFT COLUMN - MATERIALS & METHODS */
-        .center-left {
-            grid-column: 2 / 3;
-            grid-row: 1 / 3;
+        .metrics-table .metric-label {
+            font-weight: bold;
+        }
+
+        /* FIGURE BOXES */
+        .figure-box {
+            background-color: #f5f5f5;
+            border: 2px dashed #999;
+            border-radius: 3px;
+            padding: 12px;
+            text-align: center;
             display: flex;
-            flex-direction: column;
-            gap: 18px;
+            align-items: center;
+            justify-content: center;
+            min-height: 140px;
+            flex: 1;
+            overflow: hidden;
         }
 
-        /* CENTER-RIGHT COLUMN - RESULTS */
-        .center-right {
-            grid-column: 3 / 4;
-            grid-row: 1 / 3;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
+        .figure-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
 
-        /* RIGHT COLUMN */
-        .right-column {
-            grid-column: 4 / 5;
-            grid-row: 1 / 3;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        .figure-label {
+            font-size: 14px;
+            color: #003366;
+            font-weight: bold;
+            margin-bottom: 6px;
         }
 
-        .right-column > div {
+        .figure-caption {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .figure-wrapper {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-height: 0;
         }
 
-        /* FIGURE PLACEHOLDER */
-        .figure {
-            background-color: #f5f5f5;
-            border: 2px dashed #999;
-            border-radius: 4px;
-            padding: 10px;
-            text-align: center;
-            font-size: 13px;
-            color: #666;
-            min-height: 120px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .figure img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        .figure-caption {
-            font-size: 13px;
-            color: #666;
-            margin-top: 8px;
-            font-style: italic;
-            text-align: center;
-        }
-
-        /* CALLOUT BOX - Three Key Improvements */
-        .improvement-box {
-            background-color: #FFF4E6;
-            border-left: 4px solid #FF9933;
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            font-size: 13px;
-        }
-
-        .improvement-box h4 {
-            color: #FF6600;
-            font-weight: bold;
-            margin-bottom: 6px;
-            font-size: 15px;
-        }
-
-        .improvement-box p {
-            font-size: 13px;
-            color: #333;
-            margin-bottom: 3px;
-        }
-
-        /* RESULTS SECTION */
-        .results-table {
-            width: 100%;
-            font-size: 12px;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-
-        .results-table th {
-            background-color: #003366;
-            color: white;
-            padding: 6px;
-            text-align: left;
-            font-weight: bold;
-        }
-
-        .results-table td {
-            padding: 6px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .results-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
-        /* KEY METRIC HIGHLIGHT */
-        .highlight-metric {
-            background-color: #E6F2FF;
-            border: 2px solid #003366;
-            padding: 12px;
-            border-radius: 4px;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .highlight-metric .value {
-            font-size: 28px;
-            font-weight: bold;
-            color: #003366;
-        }
-
-        .highlight-metric .label {
-            font-size: 13px;
-            color: #666;
-            margin-top: 4px;
-        }
-
-        /* CONCLUSION BOX */
-        .conclusion-item {
+        /* CONCLUSION BOX - GREEN */
+        .conclusion-box {
             background-color: #E6F9F2;
-            border-left: 4px solid #009900;
+            border-left: 5px solid #009900;
+            padding: 15px;
+            border-radius: 3px;
+        }
+
+        .conclusion-box h2 {
+            color: #009900;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .conclusion-item {
+            background-color: #D4F5E8;
+            border-left: 3px solid #009900;
             padding: 10px;
             margin-bottom: 8px;
-            border-radius: 4px;
-            font-size: 13px;
+            border-radius: 3px;
+            font-size: 12px;
         }
 
         .conclusion-item strong {
             color: #009900;
         }
 
+        /* ACKNOWLEDGEMENTS BOX */
+        .acknowledgements-box {
+            background-color: #f5f5f5;
+            border-left: 5px solid #666;
+            padding: 15px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .acknowledgements-box h2 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .acknowledgements-box p {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+
         /* FOOTER */
         .footer {
-            margin-top: 20px;
-            padding-top: 12px;
+            background-color: white;
             border-top: 2px solid #ddd;
+            padding: 15px 40px;
             text-align: center;
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
             flex-shrink: 0;
         }
 
         .footer p {
-            margin-bottom: 3px;
+            margin-bottom: 2px;
+        }
+
+        /* SCROLLBAR */
+        .box::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .box::-webkit-scrollbar-thumb {
+            background: #999;
+            border-radius: 2px;
+        }
+
+        .box::-webkit-scrollbar-thumb:hover {
+            background: #666;
         }
 
         /* PRINT STYLES */
@@ -291,63 +386,11 @@
             }
 
             .poster {
-                max-width: 100%;
-                box-shadow: none;
-                aspect-ratio: auto;
-                page-break-inside: avoid;
-                margin: 0;
-                padding: 40px;
-            }
-        }
-
-        /* FIGURE SECTION HEADERS */
-        .figure-section-header {
-            font-size: 18px;
-            color: #003366;
-            margin-bottom: 6px;
-            font-weight: bold;
-        }
-
-        /* RESPONSIVE */
-        @media (max-width: 1600px) {
-            .poster {
-                font-size: 15px;
-                padding: 30px;
-            }
-
-            .header h1 {
-                font-size: 44px;
-            }
-
-            .box h2 {
-                font-size: 24px;
-            }
-        }
-
-        @media print {
-            .poster {
                 width: 100%;
                 height: auto;
-                aspect-ratio: auto;
+                box-shadow: none;
+                margin: 0;
             }
-        }
-
-        /* Scrollbar styling for overflow content */
-        .box::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .box::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        .box::-webkit-scrollbar-thumb {
-            background: #999;
-            border-radius: 3px;
-        }
-
-        .box::-webkit-scrollbar-thumb:hover {
-            background: #666;
         }
     </style>
 </head>
@@ -356,16 +399,16 @@
         <!-- HEADER -->
         <div class="header">
             <h1>Automated Segmentation and Partition Coefficient Analysis of RNA-Aptamer Condensates</h1>
-            <p>Daniel Chang & Elisa Franco</p>
-            <p class="authors">UCLA Department of Bioengineering</p>
+            <div class="authors">Daniel Chang & Elisa Franco</div>
+            <div class="institution">UCLA Department of Bioengineering</div>
         </div>
 
         <!-- MAIN CONTENT -->
-        <div class="content">
-            <!-- LEFT COLUMN: ABSTRACT + INTRODUCTION -->
-            <div class="left-column">
+        <div class="main-content">
+            <!-- COLUMN 1: ABSTRACT + INTRODUCTION -->
+            <div class="column-1">
                 <!-- ABSTRACT -->
-                <div class="box introduction">
+                <div class="box">
                     <h2>Abstract</h2>
                     <p>Biomolecular condensates are phase-separated compartments that concentrate regulatory molecules. Quantifying their properties is critical for understanding their function, but manual measurements are labor-intensive. We developed an automated pipeline based on Cellpose 3 and the Fabrini partition coefficient formula to segment RNA-aptamer condensates (JABr system) from 3D confocal microscopy stacks.</p>
                     <p><strong>Key innovation:</strong> Three-step refinement (background subtraction, connected-component nuclei cleanup, robust dilute-phase density estimation) that enabled our pipeline to match manual reference PC values for the first time (6.297 vs 6.32, −0.4% error).</p>
@@ -373,7 +416,7 @@
                 </div>
 
                 <!-- INTRODUCTION -->
-                <div class="box introduction">
+                <div class="box">
                     <h2>Introduction</h2>
                     <p><strong>Biomolecular Condensates:</strong> Phase-separated compartments that concentrate proteins and RNA, enabling rapid regulation of cellular processes.</p>
                     <p><strong>JABr System:</strong> Fluorescent RNA aptamer that binds DFHBI-1T, producing bright green fluorescence. Allows direct visualization of condensates without antibodies.</p>
@@ -383,9 +426,9 @@
                 </div>
             </div>
 
-            <!-- CENTER-LEFT COLUMN: MATERIALS & METHODS -->
-            <div class="center-left">
-                <!-- MATERIALS & METHODS -->
+            <!-- COLUMN 2: PIPELINE OVERVIEW + THREE KEY IMPROVEMENTS -->
+            <div class="column-2">
+                <!-- PIPELINE OVERVIEW -->
                 <div class="box">
                     <h2>Pipeline Overview</h2>
                     <ol>
@@ -399,104 +442,99 @@
                 </div>
 
                 <!-- THREE KEY IMPROVEMENTS -->
-                <div class="box" style="background-color: #FFF9E6; border-left-color: #FF9933;">
-                    <h2 style="color: #FF6600;">Three Key Improvements</h2>
+                <div class="box improvements-box">
+                    <h2>Three Key Improvements</h2>
 
-                    <div class="improvement-box">
+                    <div class="improvement-item">
                         <h4>1. Background Subtraction</h4>
                         <p>PC = Σ[pixel − B] / Σ[pixel − B]</p>
                         <p>B = minimum voxel intensity (removes camera baseline)</p>
                         <p><strong>Impact:</strong> Largest accuracy jump (2.04 → 3.33 PC)</p>
                     </div>
 
-                    <div class="improvement-box">
+                    <div class="improvement-item">
                         <h4>2. Connected-Component Nuclei</h4>
                         <p>Cellpose 76 labels → 3D connected components → 5 true nuclei</p>
-                        <p>Removes internal fragments from condensate texture</p>
+                        <p>Removes internal fragments from condensate texture interference</p>
                         <p><strong>Impact:</strong> Cleans dilute-phase pixel selection</p>
                     </div>
 
-                    <div class="improvement-box">
+                    <div class="improvement-item">
                         <h4>3. Robust Dilute Density</h4>
                         <p>Find all ~88,000 valid 10×10×10 patches</p>
                         <p>Take average of lowest 50 by intensity</p>
-                        <p><strong>Impact:</strong> Eliminates seed-dependent swing (4.3→6.0 → stable 6.297)</p>
+                        <p><strong>Impact:</strong> Eliminates seed-dependent swing</p>
                     </div>
                 </div>
             </div>
 
-            <!-- CENTER-RIGHT COLUMN: RESULTS -->
-            <div class="center-right">
+            <!-- COLUMN 3: MAIN RESULT + METRICS -->
+            <div class="column-3">
                 <!-- MAIN RESULT -->
-                <div class="box" style="background-color: #E6F2FF;">
-                    <h2>Main Result</h2>
-                    <div class="highlight-metric">
-                        <div class="value">6.297</div>
-                        <div class="label">Pipeline PC</div>
-                    </div>
-                    <div class="highlight-metric" style="background-color: white; border-color: #666; margin-top: 10px;">
-                        <div class="value" style="color: #666;">6.32</div>
-                        <div class="label">Reference PC</div>
-                    </div>
-                    <div style="background-color: #90EE90; padding: 15px; border-radius: 4px; text-align: center; margin-top: 10px;">
-                        <div style="font-size: 24px; color: #009900; font-weight: bold;">−0.4% Error ✓</div>
-                        <p style="font-size: 13px; color: #333; margin-top: 8px;">First automated match to manual reference benchmark</p>
+                <div class="main-result-box">
+                    <h2 style="text-align: center; color: #003366; font-size: 18px; margin-bottom: 15px;">Main Result</h2>
+                    <div class="pc-value">6.297</div>
+                    <div class="pc-label">Pipeline PC</div>
+                    <div class="pc-reference">6.32</div>
+                    <div class="pc-reference-label">Reference PC</div>
+                    <div class="error-box">
+                        <div class="error-value">−0.4% Error ✓</div>
+                        <div class="error-note">First automated match to manual reference benchmark</div>
                     </div>
                 </div>
 
-                <!-- SINGLE-ROI METRICS TABLE -->
+                <!-- METRICS TABLE -->
                 <div class="box">
                     <h2>Single-ROI Metrics</h2>
-                    <div class="figure" style="padding: 0; border: none; background: transparent;">
-                        <img src="figures/results/metrics_table.png" alt="Metrics comparison table">
+                    <div class="figure-box" style="border: none; background: transparent; padding: 0; min-height: auto;">
+                        <img src="figures/results/metrics_table.png" alt="Metrics comparison table" style="max-height: 120px;">
                     </div>
-                    <p style="font-size: 13px; color: #666; margin-top: 10px;"><em>Sample: JABr Sample2_5_1 (55 × 185 × 259 pixels)</em></p>
-                    <p style="font-size: 13px; color: #666; margin-top: 8px;"><strong>Note:</strong> Both densities are ~33% lower but cancel in the PC ratio, achieving −0.4% error.</p>
+                    <p style="font-size: 12px; color: #666; margin-top: 10px;"><em>Sample: JABr Sample2_5_1 (55 × 185 × 259 pixels)</em></p>
+                    <p style="font-size: 12px; color: #666; margin-top: 8px;"><strong>Note:</strong> Both densities are ~33% lower but cancel in the PC ratio, achieving −0.4% error.</p>
                 </div>
-
             </div>
 
-            <!-- RIGHT COLUMN: FIGURES + CONCLUSION -->
-            <div class="right-column">
-                <!-- FIGURE 1: RESULTS -->
-                <div>
-                    <div class="figure-section-header">Pipeline Output</div>
-                    <div class="figure">
+            <!-- COLUMN 4: FIGURES + CONCLUSION + ACKNOWLEDGEMENTS -->
+            <div class="column-4">
+                <!-- FIGURE 1: PIPELINE OUTPUT -->
+                <div class="figure-wrapper">
+                    <div class="figure-label">Pipeline Output</div>
+                    <div class="figure-box">
                         <img src="figures/results/results.png" alt="Pipeline output visualization">
                     </div>
                     <div class="figure-caption">6-step pipeline: raw image, denoising, segmentation, measurements, volumes, PC</div>
                 </div>
 
-                <!-- FIGURE 2: SEGMENTATION QUALITY - BINARY MASKS -->
-                <div>
-                    <div class="figure-section-header">Segmentation Quality</div>
-                    <div class="figure">
-                        <img src="figures/results/binary_masks.png" alt="Binary segmentation masks showing nuclei and condensates">
+                <!-- FIGURE 2: SEGMENTATION QUALITY -->
+                <div class="figure-wrapper">
+                    <div class="figure-label">Segmentation Quality</div>
+                    <div class="figure-box">
+                        <img src="figures/results/binary_masks.png" alt="Binary segmentation masks">
                     </div>
                     <div class="figure-caption">Left: nuclei mask. Middle: condensate mask. Right: merged (z=20)</div>
                 </div>
 
                 <!-- FIGURE 3: RAW ROI IMAGE -->
-                <div>
-                    <div class="figure-section-header">Raw ROI Image</div>
-                    <div class="figure">
-                        <img src="figures/results/raw_roi_image.png" alt="Raw fluorescence image of JABr Sample2_5_1">
+                <div class="figure-wrapper">
+                    <div class="figure-label">Raw ROI Image</div>
+                    <div class="figure-box">
+                        <img src="figures/results/raw_roi_image.png" alt="Raw fluorescence image">
                     </div>
                     <div class="figure-caption">JABr Sample2_5_1: nuclei (blue) and condensates (green)</div>
                 </div>
 
-                <!-- FIGURE 4: BACKGROUND SUBTRACTED -->
-                <div>
-                    <div class="figure-section-header">PC Calculation</div>
-                    <div class="figure">
-                        <img src="figures/results/background_subtracted.png" alt="Background-subtracted regions for PC calculation">
+                <!-- FIGURE 4: PC CALCULATION -->
+                <div class="figure-wrapper">
+                    <div class="figure-label">PC Calculation</div>
+                    <div class="figure-box">
+                        <img src="figures/results/background_subtracted.png" alt="Background-subtracted PC calculation">
                     </div>
                     <div class="figure-caption">Condensate voxels (green), dilute phase (blue), background (brown)</div>
                 </div>
 
                 <!-- CONCLUSION -->
-                <div class="box" style="background-color: #E6F9F2; border-left-color: #009900;">
-                    <h2 style="color: #009900;">Conclusion</h2>
+                <div class="conclusion-box">
+                    <h2>Conclusion</h2>
                     <div class="conclusion-item">
                         <strong>✓ Achievement:</strong> PC matching validates three key improvements
                     </div>
@@ -512,12 +550,12 @@
                 </div>
 
                 <!-- ACKNOWLEDGEMENTS -->
-                <div class="box" style="background-color: #F5F5F5; border-left-color: #666; font-size: 13px;">
-                    <h2 style="font-size: 20px; color: #333;">Acknowledgements</h2>
+                <div class="acknowledgements-box">
+                    <h2>Acknowledgements</h2>
                     <p><strong>Elisa Franco (PI):</strong> Research direction, mentorship, reference data</p>
                     <p><strong>Shiyi Zheng:</strong> Manual ImageJ/Imaris measurements</p>
                     <p><strong>Cellpose 3 Team:</strong> Open-source segmentation model</p>
-                    <p style="margin-top: 10px; font-style: italic;">Funded by NSF CAREER Award MCB-1846821</p>
+                    <p style="margin-top: 8px; font-style: italic;">Funded by NSF CAREER Award MCB-1846821</p>
                 </div>
             </div>
         </div>
