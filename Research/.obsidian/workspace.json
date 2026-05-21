@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Experiments.md",
+                "file": "JABr Experiments.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Experiments"
+              "title": "JABr Experiments"
             }
           },
           {
@@ -193,33 +193,43 @@
       "bases:Create new base": false
     }
   },
-  "active": "cab063cd8be1ea4d",
+  "active": "14e9553e3f5ccdcb",
   "lastOpenFiles": [
+    "Model Variants.md.tmp.38220.090e828c2baf",
+    "Cross-Construct Performance.md.tmp.38220.fa41a9d26a3a",
+    "Cross-Construct Performance.md.tmp.38220.3dd02e5fd978",
+    "JABr Experiments.md.tmp.38220.b106435b91d4",
+    "JABr Experiments.md.tmp.38220.2c0de9d0a30b",
+    "JABr Experiments.md.tmp.38220.fd89ed584364",
+    "JABr Experiments.md.tmp.38220.3d9f845de8ec",
+    "Calibration.md.tmp.38220.89ec97b093dc",
+    "Training Pipeline.md.tmp.38220.b6eaa72eb27d",
+    "Model Variants.md.tmp.38220.927c22c1442a",
+    "Welcome.md.tmp.38220.69df5e161f44",
+    "Pipeline Tools.md",
+    "Cross-Construct Performance.md",
+    "Pipeline Mechanics.md",
+    "Model Variants.md",
+    "Spot Detection.md",
+    "Training Pipeline.md",
+    "reference_data/Reference Data Index.md",
+    "Welcome.md",
     "Tornado Experiments.md",
+    "Calibration.md",
+    "JABr Experiments.md",
+    "Experiments.md",
+    "Batch Comparison.md",
     "JABr Original.md",
     "JABr Overlap.md",
     "JABr Trained Tuned.md",
     "JABr Trained.md",
     "Sample3 3 15 Trained Tuned.md",
-    "Training Pipeline.md",
     "GABr Experiments.md",
     "AABr Experiments.md",
-    "reference_data/Reference Data Index.md",
     "reference_data/JABr Reference Data.md",
-    "Model Variants.md",
     "Analysis.md",
-    "Batch Comparison.md",
-    "Calibration.md",
     "create a link.md",
-    "Welcome.md",
-    "JABr Experiments.md",
-    "Experiments.md",
     "Diagnostic Outputs.md",
-    "Sample3 3 3 Trained.md",
-    "Sample3 3 3 Cyto3.md",
-    "JABr 4-Arm.md",
-    "JABr Largest Nuc.md",
-    "JABr Central.md",
-    "JABr Max Overlap.md"
+    "Sample3 3 3 Trained.md"
   ]
 }
