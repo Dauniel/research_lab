@@ -8,7 +8,7 @@ PI: Elisa Franco
 
 ## 1. Abstract
 
-This project extends a previously developed Python-based image analysis pipeline for fluorescence microscopy data to achieve accurate, reference-validated quantification of biomolecular condensates. Building on a winter quarter implementation that produced partition coefficients substantially below the manually-derived reference, the spring quarter work introduced a series of targeted improvements: Cellpose 3 denoising as a preprocessing step, full three-dimensional segmentation using `do_3D=True`, background subtraction following the Fabrini et al. method, and a top-100% voxel density estimator for the condensate phase. Applied to the JABr Sample2_5_1 region of interest, the updated pipeline produced a nuclear partition coefficient of 6.297 against a manual reference of 6.324, representing a −0.4% error. These results demonstrate that the gap between automated and manual partition coefficient estimation can be effectively closed through principled preprocessing and density estimation choices, without requiring custom model training.
+This project develops a fully automated, reproducible Python-based image analysis pipeline for fluorescence microscopy data to accurately quantify biomolecular condensates in nuclear compartments. The pipeline incorporates Cellpose 3 denoising as a preprocessing step, full three-dimensional segmentation using `do_3D=True`, background subtraction following the Fabrini et al. method, and a mean voxel density estimator for the condensate phase. Applied to the JABr Sample2_5_1 region of interest, the pipeline produced a nuclear partition coefficient of 6.297 against a manual reference of 6.324, representing a −0.4% error. These results demonstrate that automated partition coefficient estimation can match manually-derived reference values through principled preprocessing and density estimation choices, without requiring custom model training.
 
 ---
 
@@ -18,9 +18,7 @@ Biomolecular condensates are membrane-less cellular compartments that play impor
 
 Fluorescence microscopy enables visualization of these condensates; however, extracting quantitative and reproducible measurements from multi-channel Z-stack imaging data remains challenging. Manual and GUI-based approaches (e.g., Imaris) are difficult to scale and lack reproducibility, particularly when analyzing large datasets or comparing results across experimental conditions.
 
-A preliminary automated pipeline was developed during winter quarter 2026 using slice-by-slice Cellpose segmentation and a direct mean-intensity partition coefficient. While the pipeline successfully generated segmentation masks and extracted object-level features, its partition coefficient estimates were substantially lower than the reference values derived from manual analysis (ROI result: 2.04 vs. reference: 6.32). This discrepancy was attributed to two main factors: (1) background signal not being subtracted from intensity measurements, and (2) segmentation operating on individual Z-slices rather than the full 3D volume, leading to fragmented and inconsistent condensate detections.
-
-The spring quarter work addresses both issues through a redesigned pipeline incorporating Cellpose 3 denoising, 3D volumetric segmentation, background subtraction, and improved density estimation. The goal is to produce partition coefficients that match the manually-derived reference values from the Franco lab dataset, enabling the pipeline to serve as a reproducible substitute for manual analysis.
+To address these limitations, this project develops an automated Python-based pipeline for condensate segmentation and partition coefficient quantification. The pipeline uses Cellpose 3 for denoising and 3D volumetric segmentation, followed by background-subtracted intensity estimation using the Fabrini et al. method. The goal is to produce partition coefficients that match the manually-derived reference values from the Franco lab dataset, enabling the pipeline to serve as a reproducible substitute for manual analysis.
 
 ---
 
@@ -137,27 +135,17 @@ The pipeline produced the following measurements for Sample2_5_1:
 
 The partition coefficient of 6.297 is within 0.4% of the manual reference value of 6.324. Both the condensate density and dilute density are approximately 33% lower than the reference values, but because the underestimation is proportionally equal in both the numerator and denominator, the ratio — and thus the partition coefficient — is accurately recovered.
 
-This result represents a substantial improvement over the winter quarter implementation, which produced a partition coefficient of 2.04 on the same ROI (−68% error relative to the reference of 6.32).
-
-### 5.3 Comparison with Winter Quarter Results
-
-| Implementation | PC | Error vs. Reference |
-|----------------|----|---------------------|
-| Winter 2026 (slice-by-slice, no background subtraction) | 2.04 | −68% |
-| Spring 2026 (3D, background subtraction, top-100%) | **6.297** | **−0.4%** |
-| Manual reference (Imaris) | 6.324 | — |
-
 ---
 
 ## 6. Discussion
 
-The spring quarter results demonstrate that the primary sources of error in the winter implementation were background signal contamination and slice-by-slice segmentation inconsistency. Addressing both through background subtraction and 3D volumetric segmentation reduced the partition coefficient error from −68% to −0.4%.
+The pipeline achieved a partition coefficient of 6.297, within 0.4% of the manual reference of 6.324. Two design choices were central to this accuracy.
 
-The background subtraction step (B = minimum voxel intensity across the stack) removes the camera offset that inflates all raw intensity measurements equally. Without this correction, both condensate and dilute densities are overestimated, but not by the same factor — the dilute phase, which has lower absolute signal, is affected proportionally more, causing the PC to be underestimated.
+Background subtraction (B = minimum voxel intensity across the stack) removes the camera offset from all intensity measurements. Without this correction, both condensate and dilute densities are overestimated, but not by the same factor — the dilute phase, which has lower absolute signal, is affected proportionally more, causing the PC to be underestimated.
 
-The switch from slice-by-slice to `do_3D=True` segmentation improved spatial coherence of condensate labels. In the winter implementation, a single condensate appearing across multiple Z-slices would be assigned different labels in each slice, with some slices failing to detect it at all, leading to inconsistent intensity sampling. The 3D mask produces a single contiguous label per condensate object, ensuring all contributing voxels are included.
+Full 3D segmentation using `do_3D=True` produces spatially coherent instance labels across the entire Z-stack. This ensures each condensate object is represented as a single contiguous 3D region, so all contributing voxels are included in the intensity estimate.
 
-The persistent ~33% offset in individual densities relative to the reference likely reflects differences in how the pipeline and Imaris define the condensate and dilute regions at object boundaries. Despite this offset, the proportionality is preserved, yielding an accurate partition coefficient. Future work could investigate whether boundary definition differences can be corrected to also match individual density values.
+The persistent ~33% offset in individual densities relative to the Imaris reference likely reflects differences in how the pipeline and Imaris define object boundaries. Despite this offset, the proportionality between condensate and dilute densities is preserved, yielding an accurate partition coefficient. Future work could investigate whether boundary definition differences can be corrected to also match individual density values.
 
 ---
 
@@ -171,7 +159,7 @@ This project developed and validated an updated Python-based pipeline for automa
 4. Top-100% voxel density estimation for the condensate phase
 5. Connected-component relabeling for nucleus cleanup
 
-Applied to JABr Sample2_5_1, the pipeline achieved a partition coefficient of 6.297 against a manual reference of 6.324 (−0.4% error), closing the 68% gap present in the winter implementation. These results establish the pipeline as a reproducible and accurate alternative to manual Imaris-based analysis for this sample.
+Applied to JABr Sample2_5_1, the pipeline achieved a partition coefficient of 6.297 against a manual reference of 6.324 (−0.4% error). These results establish the pipeline as a reproducible and accurate alternative to manual Imaris-based analysis for this sample.
 
 ---
 
