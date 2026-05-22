@@ -81,7 +81,7 @@ The condensate phase was defined as all voxels falling inside both the condensat
 $$\rho_\text{cond} = \text{mean}\left(\text{clip}(I - B,\ 0)\right) \text{ over } \{\text{cond mask} \cap \text{nuc mask}\}$$
 
 **Dilute density:**
-The dilute phase was defined as voxels inside the nucleus mask but outside the condensate mask. To approximate the manual approach of selecting a quiet representative region, the 50 lowest-intensity valid 10×10×10 voxel patches fully within the dilute region were identified, and their mean intensity was used as the dilute density estimate.
+The dilute phase was defined as voxels inside the nucleus mask but outside the condensate mask. To approximate the manual approach of selecting a quiet representative region, the 50 lowest-intensity valid 10×10×10 voxel patches fully within the dilute region were identified, and their mean intensity was used as the dilute density estimate [7].
 
 $$\rho_\text{dilute} = \text{mean of 50 lowest-intensity 10×10×10 patches within } \{\text{nuc mask} \cap \lnot\text{cond mask}\}$$
 
@@ -166,3 +166,5 @@ The full pipeline code is available at: https://github.com/Dauniel/research_lab
 [5] Gohlke, C., et al. (2023). tifffile: Read and write TIFF files. Zenodo. https://doi.org/10.5281/zenodo.6795860
 
 [6] van der Walt, S., et al. (2014). scikit-image: Image processing in Python. *PeerJ*, 2, e453. https://doi.org/10.7717/peerj.453
+
+[7] Fabrini, E., et al. (2023). Partition coefficient formula for condensate analysis. *Manuscript in preparation*.
