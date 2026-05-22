@@ -68,7 +68,9 @@ Instance segmentation was performed using Cellpose 3 [3, 4] with `do_3D=True`, w
 
 ### 3.8 Partition Coefficient Computation
 
-The nuclear partition coefficient was computed following the method described in Fabrini et al. [1], adapted for 3D volumetric masks:
+The nuclear partition coefficient was computed following the method described in Fabrini et al. [7], adapted for 3D volumetric masks.
+
+**Definition:** A voxel (volumetric pixel) is the 3D analog of a 2D pixel — a single intensity value at a specific (Z, Y, X) coordinate in the 3D image volume.
 
 **Background subtraction:**
 $$B = \min(\text{all voxel intensities in the condensate stack})$$
