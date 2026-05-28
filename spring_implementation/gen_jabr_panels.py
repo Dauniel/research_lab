@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from pipeline import denoise_stack, segment_nuclei, detect_condensates_blob
 
 ROI_DIR  = Path("C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Cut ROI")
+MASK_DIR = Path("C:/Users/Danie/Box/Condensate Volume Quantification/JABr/Masks")
 OUT_DIR  = Path("C:/storage/code/research/Research/reference_data/jabr_panels")
 COMPARE  = Path("C:/storage/code/research/spring_implementation/outputs/blob_JABr_thresh03/comparison.csv")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,6 +77,15 @@ def main():
         nuc_bin  = (nuc_masks > 0).max(axis=0)
         cond_bin = (cond_masks > 0).max(axis=0)
 
+        # Reference (Imaris) condensate mask: value 1 = nuclear condensates
+        ref_mask_path = MASK_DIR / fn
+        if ref_mask_path.exists():
+            ref_mask = tiff.imread(ref_mask_path)
+            ref_cond_bin = (ref_mask == 1).max(axis=0)
+        else:
+            ref_cond_bin = np.zeros_like(cond_bin)
+            print(f"  warn: no reference mask at {ref_mask_path.name}")
+
         # Classification overlay (matches user's example image)
         # background everywhere, dilute = nuc & ~cond, condensate = cond
         klass = np.zeros_like(nuc_bin, dtype=np.uint8)        # 0 = background
@@ -84,7 +94,7 @@ def main():
         cmap = ListedColormap([(0.65, 0.40, 0.32), (0.18, 0.25, 0.66), (0.45, 0.85, 0.30)])
 
         # Figure
-        fig, axes = plt.subplots(1, 6, figsize=(24, 4.2))
+        fig, axes = plt.subplots(1, 7, figsize=(28, 4.2))
         # 1. Reference merge (cyan nuclei + magenta cond)
         rgb = np.zeros((*nuc_mip.shape, 3), dtype=np.float32)
         n01, c01 = norm01(nuc_mip), norm01(cond_mip)
@@ -100,8 +110,10 @@ def main():
         axes[3].imshow(nuc_bin, cmap="gray"); axes[3].set_title("Pipeline nuclei mask")
         # 5. Pipeline condensate mask
         axes[4].imshow(cond_bin, cmap="gray"); axes[4].set_title("Pipeline cond mask")
-        # 6. Classification overlay
-        axes[5].imshow(klass, cmap=cmap, vmin=0, vmax=2); axes[5].set_title("Classification (MIP)")
+        # 6. Reference (Imaris) condensate mask — nuclear class only
+        axes[5].imshow(ref_cond_bin, cmap="gray"); axes[5].set_title("Reference cond mask (Imaris)")
+        # 7. Classification overlay
+        axes[6].imshow(klass, cmap=cmap, vmin=0, vmax=2); axes[6].set_title("Classification (MIP)")
 
         for ax in axes:
             ax.set_xticks([]); ax.set_yticks([])
