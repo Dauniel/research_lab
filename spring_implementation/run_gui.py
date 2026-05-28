@@ -109,9 +109,39 @@ class PipelineGUI:
         ttk.Label(card_set, text="(default -2.0)", foreground="#777").grid(
             row=1, column=2, sticky="w", padx=6)
 
+        ttk.Label(card_set, text="Construct:").grid(row=2, column=0, sticky="w", pady=3)
+        self.construct_var = tk.StringVar(value="(none)")
+        ttk.OptionMenu(card_set, self.construct_var, "(none)",
+                       "(none)", "JABr", "GABr", "AABr", "JABr_4arm", "Tornado"
+                       ).grid(row=2, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(card_set, text="(picks calibration + auto-routes detector)",
+                  foreground="#777").grid(row=2, column=2, sticky="w", padx=6)
+
+        ttk.Label(card_set, text="Condensate detector:").grid(row=3, column=0, sticky="w", pady=3)
+        self.detector_var = tk.StringVar(value="auto")
+        ttk.OptionMenu(card_set, self.detector_var, "auto",
+                       "auto", "cellpose", "blob_log"
+                       ).grid(row=3, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(card_set, text="(auto: JABr→blob_log, else Cellpose)",
+                  foreground="#777").grid(row=3, column=2, sticky="w", padx=6)
+
+        ttk.Label(card_set, text="Cellpose cond. model path:").grid(row=4, column=0, sticky="w", pady=3)
+        self.cond_model_var = tk.StringVar(value="")
+        ttk.Entry(card_set, textvariable=self.cond_model_var, width=42).grid(
+            row=4, column=1, columnspan=2, sticky="w", padx=(8, 0))
+        ttk.Label(card_set, text="(blank = built-in cyto3; recommended: V3 epoch 35)",
+                  foreground="#777").grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0))
+
+        ttk.Label(card_set, text="blob_log threshold:").grid(row=6, column=0, sticky="w", pady=3)
+        self.blob_thresh_var = tk.StringVar(value="0.03")
+        ttk.Entry(card_set, textvariable=self.blob_thresh_var, width=6).grid(
+            row=6, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(card_set, text="(default 0.03 — only used when detector=blob_log)",
+                  foreground="#777").grid(row=6, column=2, sticky="w", padx=6)
+
         self.gpu_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(card_set, text="Disable GPU  (use on laptop / no CUDA)",
-                        variable=self.gpu_var).grid(row=2, column=0, columnspan=3,
+                        variable=self.gpu_var).grid(row=7, column=0, columnspan=3,
                                                     sticky="w", pady=(6, 0))
 
         # ── Run button + status ───────────────────────────────────────────────
@@ -253,13 +283,24 @@ class PipelineGUI:
 
     def _run(self):
         try:
-            topx     = float(self.topx_var.get())
-            cellprob = float(self.cellprob_var.get())
+            topx        = float(self.topx_var.get())
+            cellprob    = float(self.cellprob_var.get())
+            blob_thresh = float(self.blob_thresh_var.get())
         except ValueError:
-            self._set_status("Invalid settings — check Top-X% and cell probability.", "#C62828")
+            self._set_status("Invalid setting — check numeric fields.", "#C62828")
             return
 
-        no_gpu = self.gpu_var.get()
+        no_gpu     = self.gpu_var.get()
+        construct  = self.construct_var.get()
+        construct  = None if construct in ("(none)", "") else construct
+        detector   = self.detector_var.get()
+        if detector == "auto":
+            detector = "blob_log" if construct == "JABr" else "cellpose"
+        cond_model = self.cond_model_var.get().strip() or None
+
+        cfg = dict(topx=topx, cellprob=cellprob, no_gpu=no_gpu,
+                   construct=construct, detector=detector,
+                   cond_model=cond_model, blob_thresh=blob_thresh)
 
         # Detect active tab
         active = self.root.nametowidget(
@@ -268,13 +309,13 @@ class PipelineGUI:
             ).select()
         )
         if active is self.single_tab:
-            self._run_single(topx, cellprob, no_gpu)
+            self._run_single(cfg)
         else:
-            self._run_batch(topx, cellprob, no_gpu)
+            self._run_batch(cfg)
 
     # ── Single-cell run ───────────────────────────────────────────────────────
 
-    def _run_single(self, topx, cellprob, no_gpu):
+    def _run_single(self, cfg):
         mode = self.mode.get()
         if mode == "roi":
             roi = self.roi_entry.get().strip()
@@ -289,9 +330,9 @@ class PipelineGUI:
             roi = None
 
         out = self.single_out_entry.get().strip() or None
-        self._start_worker(lambda: self._worker_single(roi, cond, nuc, out, topx, cellprob, no_gpu))
+        self._start_worker(lambda: self._worker_single(roi, cond, nuc, out, cfg))
 
-    def _worker_single(self, roi, cond, nuc, out, topx, cellprob, no_gpu):
+    def _worker_single(self, roi, cond, nuc, out, cfg):
         import io, contextlib
 
         class LogWriter(io.TextIOBase):
@@ -305,17 +346,19 @@ class PipelineGUI:
         with contextlib.redirect_stdout(LogWriter(self)):
             from pipeline import (
                 load_stacks, denoise_stack, segment_condensates,
-                segment_nuclei, extract_slice_measurements,
+                segment_nuclei, detect_condensates_blob,
+                extract_slice_measurements,
                 compute_volumes, compute_partition_coefficient,
-                save_outputs, plot_summary,
+                save_outputs, plot_summary, apply_calibration,
             )
             from cellpose import models, core, denoise as cp_denoise
 
             output_dir = Path(out) if out else Path(__file__).parent / "outputs"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            use_gpu = core.use_gpu() and not no_gpu
+            use_gpu = core.use_gpu() and not cfg["no_gpu"]
             self._log(f"GPU: {'enabled' if use_gpu else 'disabled'}")
+            self._log(f"Construct: {cfg['construct'] or '(none)'}    Detector: {cfg['detector']}")
 
             self._log("\n[1/6] Loading stacks...")
             cond_stack, nuc_stack = load_stacks(
@@ -329,10 +372,23 @@ class PipelineGUI:
             cond_restored = denoise_stack(cond_stack, dn_model, "condensates")
             nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
 
-            self._log("\n[3/6] Segmenting...")
-            seg_model     = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
-            cond_masks_3d = segment_condensates(cond_restored, seg_model, None)
-            nuc_masks_3d  = segment_nuclei(nuc_restored, seg_model, None, cellprob)
+            self._log("\n[3/6] Segmenting nuclei (Cellpose cyto3)...")
+            nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+            nuc_masks_3d  = segment_nuclei(nuc_restored, nuc_seg_model, None, cfg["cellprob"])
+
+            if cfg["detector"] == "blob_log":
+                self._log(f"\n[3b/6] Detecting condensates (blob_log, threshold={cfg['blob_thresh']})...")
+                cond_masks_3d = detect_condensates_blob(
+                    cond_stack, nuc_masks_3d > 0,
+                    threshold=cfg["blob_thresh"], min_sigma=1.5, max_sigma=6.0, num_sigma=8,
+                )
+            else:
+                self._log(f"\n[3b/6] Segmenting condensates (Cellpose, model={cfg['cond_model'] or 'cyto3'})...")
+                if cfg["cond_model"]:
+                    cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=cfg["cond_model"])
+                else:
+                    cond_seg_model = nuc_seg_model
+                cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
 
             self._log("\n[4/6] Measuring...")
             cond_df = extract_slice_measurements(cond_masks_3d, cond_stack)
@@ -343,11 +399,18 @@ class PipelineGUI:
             nuc_vol_df  = compute_volumes(nuc_masks_3d,  None, None)
 
             self._log("\n[6/6] Computing partition coefficient...")
-            pc = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d, cond_topx=topx)
-            self._log(f"\n  PC               : {pc['pc']:.3f}")
+            pc = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d, cond_topx=cfg["topx"])
+            self._log(f"\n  PC raw           : {pc['pc']:.3f}")
             self._log(f"  Background (B)   : {pc['background']:.2f}")
             self._log(f"  Cond. density    : {pc['cond_density']:.2f}")
             self._log(f"  Dilute density   : {pc['dilute_density']:.2f}")
+            pc_cal, was_cal = apply_calibration(pc["pc"], cfg["construct"])
+            if was_cal:
+                self._log(f"  PC calibrated    : {pc_cal:.3f}   ({cfg['construct']})")
+                pc["pc_calibrated"] = pc_cal
+                pc["construct"] = cfg["construct"]
+            elif cfg["construct"]:
+                self._log(f"  [warn] no calibration entry for '{cfg['construct']}'")
 
             save_outputs(output_dir, cond_restored, nuc_restored,
                          cond_masks_3d, nuc_masks_3d,
@@ -358,16 +421,16 @@ class PipelineGUI:
 
     # ── Batch run ─────────────────────────────────────────────────────────────
 
-    def _run_batch(self, topx, cellprob, no_gpu):
+    def _run_batch(self, cfg):
         folder = self.batch_dir_entry.get().strip()
         if not folder:
             self._set_status("Please select a folder.", "#C62828"); return
 
         ref_csv = self.ref_csv_entry.get().strip() or None
         out     = self.batch_out_entry.get().strip() or None
-        self._start_worker(lambda: self._worker_batch(folder, ref_csv, out, topx, cellprob, no_gpu))
+        self._start_worker(lambda: self._worker_batch(folder, ref_csv, out, cfg))
 
-    def _worker_batch(self, folder, ref_csv, out, topx, cellprob, no_gpu):
+    def _worker_batch(self, folder, ref_csv, out, cfg):
         import io, contextlib
         import pandas as pd
         import matplotlib.pyplot as plt
@@ -384,9 +447,10 @@ class PipelineGUI:
         with contextlib.redirect_stdout(LogWriter(self)):
             from pipeline import (
                 load_stacks, denoise_stack, segment_condensates,
-                segment_nuclei, extract_slice_measurements,
+                segment_nuclei, detect_condensates_blob,
+                extract_slice_measurements,
                 compute_volumes, compute_partition_coefficient,
-                save_outputs,
+                save_outputs, apply_calibration,
             )
             from cellpose import models, core, denoise as cp_denoise
 
@@ -398,14 +462,21 @@ class PipelineGUI:
                 self._log("No .tif files found in the selected folder.")
                 return
 
-            self._log(f"Found {len(tif_files)} TIF files in {folder}\n")
+            self._log(f"Found {len(tif_files)} TIF files in {folder}")
+            self._log(f"Construct: {cfg['construct'] or '(none)'}    Detector: {cfg['detector']}")
 
-            use_gpu = core.use_gpu() and not no_gpu
+            use_gpu = core.use_gpu() and not cfg["no_gpu"]
             self._log(f"GPU: {'enabled' if use_gpu else 'disabled'}\n")
 
             # Load models once
-            dn_model  = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
-            seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+            dn_model      = cp_denoise.DenoiseModel(model_type="denoise_cyto3", gpu=use_gpu)
+            nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
+            cond_seg_model = None
+            if cfg["detector"] == "cellpose":
+                if cfg["cond_model"]:
+                    cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=cfg["cond_model"])
+                else:
+                    cond_seg_model = nuc_seg_model
 
             # Load reference CSV if provided
             ref_df = None
@@ -429,26 +500,45 @@ class PipelineGUI:
                     cond_restored = denoise_stack(cond_stack, dn_model, "condensates")
                     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
 
-                    cond_masks_3d = segment_condensates(cond_restored, seg_model, None)
-                    nuc_masks_3d  = segment_nuclei(nuc_restored, seg_model, None, cellprob)
+                    nuc_masks_3d = segment_nuclei(nuc_restored, nuc_seg_model, None, cfg["cellprob"])
+
+                    if cfg["detector"] == "blob_log":
+                        cond_masks_3d = detect_condensates_blob(
+                            cond_stack, nuc_masks_3d > 0,
+                            threshold=cfg["blob_thresh"], min_sigma=1.5, max_sigma=6.0, num_sigma=8,
+                        )
+                    else:
+                        cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
 
                     from batch_compare import max_overlap_nucleus
                     nuc_single = max_overlap_nucleus(nuc_masks_3d, cond_masks_3d)
 
                     pc = compute_partition_coefficient(
-                        cond_stack, cond_masks_3d, nuc_single, cond_topx=topx)
+                        cond_stack, cond_masks_3d, nuc_single, cond_topx=cfg["topx"])
+                    pc_cal, was_cal = apply_calibration(pc["pc"], cfg["construct"])
 
                     row = {"file": tif_path.name, "pipeline_pc": round(pc["pc"], 4)}
+                    if was_cal:
+                        row["pipeline_pc_calibrated"] = round(pc_cal, 4)
                     if ref_df is not None:
                         match = ref_df[ref_df["_stem"] == tif_path.stem]
                         if not match.empty:
                             ref_val = float(match.iloc[0][pc_col])
                             row["reference_pc"] = round(ref_val, 4)
-                            row["error_pct"]    = round((pc["pc"] - ref_val) / ref_val * 100, 1)
+                            row["error_pct_raw"] = round((pc["pc"] - ref_val) / ref_val * 100, 1)
+                            if was_cal:
+                                row["error_pct_calibrated"] = round((pc_cal - ref_val) / ref_val * 100, 1)
                     results.append(row)
-                    self._log(f"    PC = {pc['pc']:.3f}" +
-                              (f"  (ref {row.get('reference_pc', '—')}, "
-                               f"error {row.get('error_pct', '—')}%)" if ref_df is not None else ""))
+                    msg = f"    PC raw = {pc['pc']:.3f}"
+                    if was_cal:
+                        msg += f"  cal = {pc_cal:.3f}"
+                    if ref_df is not None and "reference_pc" in row:
+                        msg += f"  ref = {row['reference_pc']}"
+                        if was_cal:
+                            msg += f"  |err_cal| = {abs(row['error_pct_calibrated'])}%"
+                        else:
+                            msg += f"  |err_raw| = {abs(row['error_pct_raw'])}%"
+                    self._log(msg)
 
                 except Exception as e:
                     self._log(f"    ERROR: {e}")
@@ -459,24 +549,27 @@ class PipelineGUI:
             results_df.to_csv(output_dir / "comparison.csv", index=False)
             self._log(f"\nSaved comparison.csv → {output_dir}")
 
-            # Scatter plot if reference available
+            # Scatter plot if reference available — prefer calibrated y if present
             if ref_df is not None and "reference_pc" in results_df.columns:
-                valid = results_df.dropna(subset=["reference_pc", "pipeline_pc"])
+                y_col = "pipeline_pc_calibrated" if "pipeline_pc_calibrated" in results_df.columns else "pipeline_pc"
+                valid = results_df.dropna(subset=["reference_pc", y_col])
                 if len(valid) > 1:
-                    r = np.corrcoef(valid["reference_pc"], valid["pipeline_pc"])[0, 1]
-                    rmse = float(np.sqrt(((valid["pipeline_pc"] - valid["reference_pc"])**2).mean()))
+                    r = np.corrcoef(valid["reference_pc"], valid[y_col])[0, 1]
+                    rmse = float(np.sqrt(((valid[y_col] - valid["reference_pc"])**2).mean()))
+                    mae_pct = float((abs(valid[y_col] - valid["reference_pc"]) / valid["reference_pc"]).mean() * 100)
                     fig, ax = plt.subplots(figsize=(5, 5))
-                    ax.scatter(valid["reference_pc"], valid["pipeline_pc"],
+                    ax.scatter(valid["reference_pc"], valid[y_col],
                                color="#1A73E8", alpha=0.8, edgecolors="white", s=60)
-                    lim = max(valid["reference_pc"].max(), valid["pipeline_pc"].max()) * 1.1
+                    lim = max(valid["reference_pc"].max(), valid[y_col].max()) * 1.1
                     ax.plot([0, lim], [0, lim], "k--", lw=0.8, alpha=0.5)
-                    ax.set_xlabel("Reference PC"); ax.set_ylabel("Pipeline PC")
-                    ax.set_title(f"r = {r:.3f}  |  RMSE = {rmse:.3f}")
+                    y_label = "Pipeline PC (calibrated)" if y_col == "pipeline_pc_calibrated" else "Pipeline PC (raw)"
+                    ax.set_xlabel("Reference PC"); ax.set_ylabel(y_label)
+                    ax.set_title(f"r = {r:.3f}  |  RMSE = {rmse:.3f}  |  MAE = {mae_pct:.1f}%")
                     ax.set_xlim(0, lim); ax.set_ylim(0, lim)
                     plt.tight_layout()
                     plt.savefig(output_dir / "scatter.png", dpi=150)
                     plt.close()
-                    self._log(f"Saved scatter.png  (r={r:.3f}, RMSE={rmse:.3f})")
+                    self._log(f"Saved scatter.png  (r={r:.3f}, RMSE={rmse:.3f}, MAE={mae_pct:.1f}%)")
 
             self._log(f"\nAll outputs saved to: {output_dir}")
 
