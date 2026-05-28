@@ -346,11 +346,13 @@ class PipelineGUI:
         with contextlib.redirect_stdout(LogWriter(self)):
             from pipeline import (
                 load_stacks, denoise_stack, segment_condensates,
-                segment_nuclei, detect_condensates_blob,
+                segment_nuclei, detect_condensates_blob, detect_condensates_blob_both,
                 extract_slice_measurements,
                 compute_volumes, compute_partition_coefficient,
+                compute_cytoplasmic_partition_coefficient,
                 save_outputs, plot_summary, apply_calibration,
             )
+            import numpy as np
             from cellpose import models, core, denoise as cp_denoise
 
             output_dir = Path(out) if out else Path(__file__).parent / "outputs"
@@ -376,9 +378,10 @@ class PipelineGUI:
             nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
             nuc_masks_3d  = segment_nuclei(nuc_restored, nuc_seg_model, None, cfg["cellprob"])
 
+            cyto_cond_masks_3d = None
             if cfg["detector"] == "blob_log":
-                self._log(f"\n[3b/6] Detecting condensates (blob_log, threshold={cfg['blob_thresh']})...")
-                cond_masks_3d = detect_condensates_blob(
+                self._log(f"\n[3b/6] Detecting condensates (blob_log split, threshold={cfg['blob_thresh']})...")
+                cond_masks_3d, cyto_cond_masks_3d = detect_condensates_blob_both(
                     cond_stack, nuc_masks_3d > 0,
                     threshold=cfg["blob_thresh"], min_sigma=1.5, max_sigma=6.0, num_sigma=8,
                 )
@@ -388,7 +391,10 @@ class PipelineGUI:
                     cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=cfg["cond_model"])
                 else:
                     cond_seg_model = nuc_seg_model
-                cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
+                all_cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
+                nuc_3d = nuc_masks_3d > 0
+                cond_masks_3d = (all_cond_masks_3d * nuc_3d).astype(np.int32)
+                cyto_cond_masks_3d = (all_cond_masks_3d * (~nuc_3d)).astype(np.int32)
 
             self._log("\n[4/6] Measuring...")
             cond_df = extract_slice_measurements(cond_masks_3d, cond_stack)
@@ -400,17 +406,30 @@ class PipelineGUI:
 
             self._log("\n[6/6] Computing partition coefficient...")
             pc = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d, cond_topx=cfg["topx"])
-            self._log(f"\n  PC raw           : {pc['pc']:.3f}")
-            self._log(f"  Background (B)   : {pc['background']:.2f}")
-            self._log(f"  Cond. density    : {pc['cond_density']:.2f}")
-            self._log(f"  Dilute density   : {pc['dilute_density']:.2f}")
+            self._log(f"\n  [nuclear]      PC raw         : {pc['pc']:.3f}")
+            self._log(f"                 Background (B) : {pc['background']:.2f}")
+            self._log(f"                 Cond density   : {pc['cond_density']:.2f}")
+            self._log(f"                 Dilute density : {pc['dilute_density']:.2f}")
             pc_cal, was_cal = apply_calibration(pc["pc"], cfg["construct"])
             if was_cal:
-                self._log(f"  PC calibrated    : {pc_cal:.3f}   ({cfg['construct']})")
+                self._log(f"                 PC calibrated  : {pc_cal:.3f}   ({cfg['construct']})")
                 pc["pc_calibrated"] = pc_cal
                 pc["construct"] = cfg["construct"]
             elif cfg["construct"]:
-                self._log(f"  [warn] no calibration entry for '{cfg['construct']}'")
+                self._log(f"                 [warn] no calibration entry for '{cfg['construct']}'")
+
+            if cyto_cond_masks_3d is not None:
+                pc_cyto = compute_cytoplasmic_partition_coefficient(
+                    cond_stack, cyto_cond_masks_3d, nuc_masks_3d, cond_topx=cfg["topx"])
+                if not np.isnan(pc_cyto["pc"]):
+                    self._log(f"\n  [cytoplasmic]  PC raw         : {pc_cyto['pc']:.3f}")
+                    self._log(f"                 Cond density   : {pc_cyto['cond_density']:.2f}")
+                    self._log(f"                 Dilute density : {pc_cyto['dilute_density']:.2f}")
+                else:
+                    self._log("\n  [cytoplasmic]  no cytoplasmic condensates detected")
+                pc["pc_cytoplasmic"] = pc_cyto["pc"]
+                pc["cond_density_cytoplasmic"] = pc_cyto["cond_density"]
+                pc["dilute_density_cytoplasmic"] = pc_cyto["dilute_density"]
 
             save_outputs(output_dir, cond_restored, nuc_restored,
                          cond_masks_3d, nuc_masks_3d,
@@ -447,9 +466,10 @@ class PipelineGUI:
         with contextlib.redirect_stdout(LogWriter(self)):
             from pipeline import (
                 load_stacks, denoise_stack, segment_condensates,
-                segment_nuclei, detect_condensates_blob,
+                segment_nuclei, detect_condensates_blob, detect_condensates_blob_both,
                 extract_slice_measurements,
                 compute_volumes, compute_partition_coefficient,
+                compute_cytoplasmic_partition_coefficient,
                 save_outputs, apply_calibration,
             )
             from cellpose import models, core, denoise as cp_denoise
@@ -502,13 +522,17 @@ class PipelineGUI:
 
                     nuc_masks_3d = segment_nuclei(nuc_restored, nuc_seg_model, None, cfg["cellprob"])
 
+                    cyto_cond_masks_3d = None
                     if cfg["detector"] == "blob_log":
-                        cond_masks_3d = detect_condensates_blob(
+                        cond_masks_3d, cyto_cond_masks_3d = detect_condensates_blob_both(
                             cond_stack, nuc_masks_3d > 0,
                             threshold=cfg["blob_thresh"], min_sigma=1.5, max_sigma=6.0, num_sigma=8,
                         )
                     else:
-                        cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
+                        all_cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, None)
+                        nuc_3d_bool = nuc_masks_3d > 0
+                        cond_masks_3d = (all_cond_masks_3d * nuc_3d_bool).astype(np.int32)
+                        cyto_cond_masks_3d = (all_cond_masks_3d * (~nuc_3d_bool)).astype(np.int32)
 
                     from batch_compare import max_overlap_nucleus
                     nuc_single = max_overlap_nucleus(nuc_masks_3d, cond_masks_3d)
@@ -516,10 +540,15 @@ class PipelineGUI:
                     pc = compute_partition_coefficient(
                         cond_stack, cond_masks_3d, nuc_single, cond_topx=cfg["topx"])
                     pc_cal, was_cal = apply_calibration(pc["pc"], cfg["construct"])
+                    pc_cyto = compute_cytoplasmic_partition_coefficient(
+                        cond_stack, cyto_cond_masks_3d, nuc_masks_3d, cond_topx=cfg["topx"])
 
-                    row = {"file": tif_path.name, "pipeline_pc": round(pc["pc"], 4)}
+                    row = {"file": tif_path.name,
+                           "pipeline_pc_nuclear": round(pc["pc"], 4),
+                           "pipeline_pc_cytoplasmic": (round(pc_cyto["pc"], 4)
+                                                       if not np.isnan(pc_cyto["pc"]) else None)}
                     if was_cal:
-                        row["pipeline_pc_calibrated"] = round(pc_cal, 4)
+                        row["pipeline_pc_nuclear_calibrated"] = round(pc_cal, 4)
                     if ref_df is not None:
                         match = ref_df[ref_df["_stem"] == tif_path.stem]
                         if not match.empty:
@@ -529,9 +558,11 @@ class PipelineGUI:
                             if was_cal:
                                 row["error_pct_calibrated"] = round((pc_cal - ref_val) / ref_val * 100, 1)
                     results.append(row)
-                    msg = f"    PC raw = {pc['pc']:.3f}"
+                    msg = f"    nuc PC raw = {pc['pc']:.3f}"
                     if was_cal:
                         msg += f"  cal = {pc_cal:.3f}"
+                    if not np.isnan(pc_cyto["pc"]):
+                        msg += f"   cyto PC = {pc_cyto['pc']:.3f}"
                     if ref_df is not None and "reference_pc" in row:
                         msg += f"  ref = {row['reference_pc']}"
                         if was_cal:
@@ -542,7 +573,7 @@ class PipelineGUI:
 
                 except Exception as e:
                     self._log(f"    ERROR: {e}")
-                    results.append({"file": tif_path.name, "pipeline_pc": float("nan"), "error": str(e)})
+                    results.append({"file": tif_path.name, "pipeline_pc_nuclear": float("nan"), "error": str(e)})
 
             # Save results
             results_df = pd.DataFrame(results)
@@ -551,7 +582,8 @@ class PipelineGUI:
 
             # Scatter plot if reference available — prefer calibrated y if present
             if ref_df is not None and "reference_pc" in results_df.columns:
-                y_col = "pipeline_pc_calibrated" if "pipeline_pc_calibrated" in results_df.columns else "pipeline_pc"
+                y_col = ("pipeline_pc_nuclear_calibrated" if "pipeline_pc_nuclear_calibrated" in results_df.columns
+                         else "pipeline_pc_nuclear")
                 valid = results_df.dropna(subset=["reference_pc", y_col])
                 if len(valid) > 1:
                     r = np.corrcoef(valid["reference_pc"], valid[y_col])[0, 1]

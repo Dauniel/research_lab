@@ -242,6 +242,50 @@ def detect_condensates_blob(cond_stack: np.ndarray, nuc_mask_3d: np.ndarray,
     return mask
 
 
+def detect_condensates_blob_both(cond_stack: np.ndarray, nuc_mask_3d: np.ndarray,
+                                 threshold: float, min_sigma: float, max_sigma: float,
+                                 num_sigma: int):
+    """blob_log returning two instance masks: (intra-nuclear, cytoplasmic).
+    Splits by centroid: nuclear = blob centroid inside nuc_mask_3d, else cytoplasmic.
+    Renders each as a sphere of radius sigma*sqrt(3)."""
+    print(f"  Segmenting condensates (blob_log split, threshold={threshold})...")
+    B = float(cond_stack.min())
+    norm = np.clip(cond_stack.astype(np.float32) - B, 0, None)
+    mx = norm.max()
+    if mx <= 0:
+        empty = np.zeros_like(cond_stack, dtype=np.int32)
+        return empty, empty.copy()
+    norm /= mx
+    blobs = blob_log(norm, min_sigma=min_sigma, max_sigma=max_sigma,
+                     num_sigma=num_sigma, threshold=threshold, overlap=0.5)
+    if len(blobs) == 0:
+        empty = np.zeros_like(cond_stack, dtype=np.int32)
+        return empty, empty.copy()
+    zs = blobs[:, 0].astype(int); ys = blobs[:, 1].astype(int); xs = blobs[:, 2].astype(int)
+    in_nuc = nuc_mask_3d[zs, ys, xs] > 0
+
+    def _render(blob_set):
+        Z, Y, X = cond_stack.shape
+        mask = np.zeros_like(cond_stack, dtype=np.int32)
+        for i, (z, y, x, s) in enumerate(blob_set, start=1):
+            r = max(1.5, s * np.sqrt(3))
+            zi, yi, xi = int(round(z)), int(round(y)), int(round(x))
+            rr = int(np.ceil(r))
+            z0, z1 = max(0, zi - rr), min(Z, zi + rr + 1)
+            y0, y1 = max(0, yi - rr), min(Y, yi + rr + 1)
+            x0, x1 = max(0, xi - rr), min(X, xi + rr + 1)
+            zz, yy, xx = np.ogrid[z0:z1, y0:y1, x0:x1]
+            sphere = (zz - zi) ** 2 + (yy - yi) ** 2 + (xx - xi) ** 2 <= r * r
+            sub = mask[z0:z1, y0:y1, x0:x1]
+            sub[sphere & (sub == 0)] = i
+        return mask
+
+    nuc_mask = _render(blobs[in_nuc])
+    cyto_mask = _render(blobs[~in_nuc])
+    print(f"    blob_log: {int(in_nuc.sum())} nuclear, {int((~in_nuc).sum())} cytoplasmic (of {len(blobs)} total)")
+    return nuc_mask, cyto_mask
+
+
 def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -> np.ndarray:
     """
     Segment nuclei with Cellpose 3 in native 3D mode, then post-process.
@@ -396,6 +440,70 @@ def compute_partition_coefficient(
 
     pc = cond_density / dilute_density
     return {"pc": pc, "background": B, "cond_density": cond_density, "dilute_density": dilute_density}
+
+
+def compute_cytoplasmic_partition_coefficient(
+    cond_stack: np.ndarray,
+    cyto_cond_masks_3d: np.ndarray,
+    nuc_masks_3d: np.ndarray,
+    cond_topx: float = 75.0,
+) -> dict:
+    """Cytoplasmic PC, Fabrini methodology.
+
+    Condensate mask: cytoplasmic condensates (centroids outside nuclei).
+    Dilute pool: voxels outside any nucleus AND outside any condensate, restricted
+    to "signal-bearing" cytoplasm so empty background space doesn't sneak in.
+    Signal threshold = 25th percentile of cond_stack (matches Fabrini's
+    intensity-above-background definition; not anatomy-based).
+
+    Returns: pc, background, cond_density, dilute_density (None if no signal-
+    bearing cytoplasmic region exists, e.g. all blobs were nuclear)."""
+    B       = float(cond_stack.min())
+    cond_3d = cyto_cond_masks_3d > 0
+    nuc_3d  = nuc_masks_3d > 0
+
+    if not cond_3d.any():
+        return {"pc": float("nan"), "background": B, "cond_density": 0.0,
+                "dilute_density": float("nan")}
+
+    # Condensed phase — top-X% brightest voxels in the cytoplasmic-cond mask.
+    cond_vals = np.clip(cond_stack[cond_3d].astype(np.float64) - B, 0, None)
+    cond_vals_sorted = np.sort(cond_vals)
+    cutoff = int(len(cond_vals_sorted) * (1.0 - cond_topx / 100.0))
+    cond_density = float(cond_vals_sorted[cutoff:].mean()) if len(cond_vals_sorted) > cutoff else float(cond_vals_sorted.mean())
+
+    # Cytoplasmic dilute = outside nucleus, outside condensate, above signal floor.
+    signal_floor = float(np.percentile(cond_stack, 25))
+    dilute_3d = (~nuc_3d) & (~cond_3d) & (cond_stack > signal_floor)
+    PATCH, N_PATCHES = 10, 50
+    Z, Y, X = cond_stack.shape
+    candidates = np.argwhere(dilute_3d)
+    in_bounds = candidates[
+        (candidates[:, 0] + PATCH <= Z) &
+        (candidates[:, 1] + PATCH <= Y) &
+        (candidates[:, 2] + PATCH <= X)
+    ]
+    patch_means = []
+    for z0, y0, x0 in in_bounds:
+        sub = dilute_3d[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH]
+        if sub.all():
+            patch = cond_stack[z0:z0+PATCH, y0:y0+PATCH, x0:x0+PATCH].astype(np.float64) - B
+            patch_means.append(np.clip(patch, 0, None).mean())
+
+    if patch_means:
+        patch_means.sort()
+        dilute_density = float(np.mean(patch_means[:N_PATCHES]))
+    elif dilute_3d.any():
+        dilute_density = float(np.clip(
+            cond_stack[dilute_3d].astype(np.float64) - B, 0, None
+        ).mean())
+    else:
+        return {"pc": float("nan"), "background": B,
+                "cond_density": cond_density, "dilute_density": float("nan")}
+
+    pc = cond_density / dilute_density if dilute_density > 0 else float("nan")
+    return {"pc": pc, "background": B, "cond_density": cond_density,
+            "dilute_density": dilute_density, "signal_floor": signal_floor}
 
 
 # ── Step 7: Save outputs ──────────────────────────────────────────────────────
@@ -571,9 +679,12 @@ def main():
     nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
     nuc_masks_3d  = segment_nuclei(nuc_restored,  nuc_seg_model,  args.nuc_diameter, args.nuc_cellprob)
 
-    # Segment condensates
+    # Segment condensates. For blob_log we split into nuclear vs cytoplasmic
+    # by centroid; for cellpose the same mask is used and the split happens at
+    # PC computation time via intersection with the nucleus mask.
+    cyto_cond_masks_3d = None
     if detector == "blob_log":
-        cond_masks_3d = detect_condensates_blob(
+        cond_masks_3d, cyto_cond_masks_3d = detect_condensates_blob_both(
             cond_stack, nuc_masks_3d > 0,
             threshold=args.blob_threshold, min_sigma=args.min_sigma,
             max_sigma=args.max_sigma, num_sigma=args.num_sigma,
@@ -584,7 +695,11 @@ def main():
             cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
         else:
             cond_seg_model = nuc_seg_model
-        cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, args.diameter, cellprob_threshold=args.cond_cellprob)
+        all_cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, args.diameter, cellprob_threshold=args.cond_cellprob)
+        # Split: nuclear = AND nucleus, cytoplasmic = AND NOT nucleus
+        nuc_3d = nuc_masks_3d > 0
+        cond_masks_3d = (all_cond_masks_3d * nuc_3d).astype(np.int32)
+        cyto_cond_masks_3d = (all_cond_masks_3d * (~nuc_3d)).astype(np.int32)
 
     # Per-slice measurements
     print("\n[4/6] Extracting per-slice measurements...")
@@ -601,10 +716,23 @@ def main():
     # Partition coefficient
     print("\n[6/6] Computing partition coefficient...")
     pc_result = compute_partition_coefficient(cond_stack, cond_masks_3d, nuc_masks_3d, cond_topx=args.cond_topx)
-    print(f"    Partition Coefficient : {pc_result['pc']:.3f}")
-    print(f"    Background (B)        : {pc_result['background']:.2f}")
-    print(f"    Condensate density    : {pc_result['cond_density']:.2f}")
-    print(f"    Dilute density        : {pc_result['dilute_density']:.2f}")
+    print(f"    [nuclear]    PC               : {pc_result['pc']:.3f}")
+    print(f"                 Background (B)   : {pc_result['background']:.2f}")
+    print(f"                 Cond density     : {pc_result['cond_density']:.2f}")
+    print(f"                 Dilute density   : {pc_result['dilute_density']:.2f}")
+
+    if cyto_cond_masks_3d is not None:
+        pc_cyto = compute_cytoplasmic_partition_coefficient(
+            cond_stack, cyto_cond_masks_3d, nuc_masks_3d, cond_topx=args.cond_topx)
+        if not np.isnan(pc_cyto["pc"]):
+            print(f"    [cytoplasmic] PC              : {pc_cyto['pc']:.3f}")
+            print(f"                 Cond density     : {pc_cyto['cond_density']:.2f}")
+            print(f"                 Dilute density   : {pc_cyto['dilute_density']:.2f}")
+        else:
+            print(f"    [cytoplasmic] no cytoplasmic condensates detected")
+        pc_result["pc_cytoplasmic"] = pc_cyto["pc"]
+        pc_result["cond_density_cytoplasmic"] = pc_cyto["cond_density"]
+        pc_result["dilute_density_cytoplasmic"] = pc_cyto["dilute_density"]
 
     pc_cal, was_cal = apply_calibration(pc_result["pc"], args.construct)
     if was_cal:
