@@ -64,7 +64,8 @@ Instance segmentation was performed using Cellpose 3 [3, 4] with `do_3D=True`, w
 
 **Condensate segmentation** used the pretrained `cyto3` model with a cell probability threshold of 0.0 and GPU acceleration enabled.
 
-**Nuclei segmentation** used the same `cyto3` model, followed by connected-component relabeling [6] to enforce a single label per nucleus. The raw Cellpose output produced 76 candidate labels; these were converted into binary masks — where each voxel is either foreground (nucleus) or background — and then relabeled using connected-component analysis, which groups spatially contiguous foreground voxels into unique objects. After this cleanup, 5 distinct nuclei were retained in the ROI.
+**Nuclei segmentation** used the same `cyto3` model, followed by connected-component relabeling [6] to enforce a single label per nucleus. 
+
 
 ### 3.8 Partition Coefficient Computation
 

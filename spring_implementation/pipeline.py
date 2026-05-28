@@ -37,6 +37,7 @@ import tifffile as tiff
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from skimage.measure import regionprops_table, label
+from skimage.feature import blob_log
 
 import torch
 from cellpose import models, core, denoise
@@ -96,6 +97,12 @@ def parse_args():
     p.add_argument("--cond-model",    default=None,  type=Path,  help="Fine-tuned Cellpose model path for condensates (default: cyto3)")
     p.add_argument("--cond-cellprob", default=0.0,   type=float, help="cellprob_threshold for condensate seg")
     p.add_argument("--construct",     default=None,  type=str,   help="Construct name for per-construct PC calibration")
+    p.add_argument("--detector",      default="auto", choices=["auto", "cellpose", "blob_log"],
+                                                                  help="Condensate detector. 'auto' picks blob_log for JABr, Cellpose otherwise (default: auto)")
+    p.add_argument("--blob-threshold",default=0.03,  type=float, help="blob_log threshold (default 0.03)")
+    p.add_argument("--min-sigma",     default=1.5,   type=float, help="blob_log min sigma")
+    p.add_argument("--max-sigma",     default=6.0,   type=float, help="blob_log max sigma")
+    p.add_argument("--num-sigma",     default=8,     type=int,   help="blob_log num sigma steps")
     p.add_argument("--no-gpu",        action="store_true",       help="Disable GPU")
     return p.parse_args()
 
@@ -193,6 +200,46 @@ def segment_condensates(stack: np.ndarray, seg_model, diameter, cellprob_thresho
     )
     print(f"    condensates: {masks_3d.max()} objects found")
     return masks_3d.astype(np.int32)
+
+
+def detect_condensates_blob(cond_stack: np.ndarray, nuc_mask_3d: np.ndarray,
+                            threshold: float, min_sigma: float, max_sigma: float,
+                            num_sigma: int) -> np.ndarray:
+    """Laplacian-of-Gaussian spot detection. One sphere of radius sigma*sqrt(3) per blob.
+    Only keeps blobs whose center lies inside nuc_mask_3d (binary)."""
+    print(f"  Segmenting condensates (blob_log, threshold={threshold}, sigma=[{min_sigma},{max_sigma}])...")
+    B = float(cond_stack.min())
+    norm = np.clip(cond_stack.astype(np.float32) - B, 0, None)
+    mx = norm.max()
+    if mx <= 0:
+        return np.zeros_like(cond_stack, dtype=np.int32)
+    norm /= mx
+
+    blobs = blob_log(norm, min_sigma=min_sigma, max_sigma=max_sigma,
+                     num_sigma=num_sigma, threshold=threshold, overlap=0.5)
+    if len(blobs) == 0:
+        print("    blob_log: 0 blobs detected")
+        return np.zeros_like(cond_stack, dtype=np.int32)
+
+    zs = blobs[:, 0].astype(int); ys = blobs[:, 1].astype(int); xs = blobs[:, 2].astype(int)
+    inside = nuc_mask_3d[zs, ys, xs] > 0
+    blobs_in = blobs[inside]
+
+    Z, Y, X = cond_stack.shape
+    mask = np.zeros_like(cond_stack, dtype=np.int32)
+    for i, (z, y, x, s) in enumerate(blobs_in, start=1):
+        r = max(1.5, s * np.sqrt(3))
+        zi, yi, xi = int(round(z)), int(round(y)), int(round(x))
+        rr = int(np.ceil(r))
+        z0, z1 = max(0, zi - rr), min(Z, zi + rr + 1)
+        y0, y1 = max(0, yi - rr), min(Y, yi + rr + 1)
+        x0, x1 = max(0, xi - rr), min(X, xi + rr + 1)
+        zz, yy, xx = np.ogrid[z0:z1, y0:y1, x0:x1]
+        sphere = (zz - zi) ** 2 + (yy - yi) ** 2 + (xx - xi) ** 2 <= r * r
+        sub = mask[z0:z1, y0:y1, x0:x1]
+        sub[sphere & (sub == 0)] = i
+    print(f"    blob_log: {mask.max()} condensates (of {len(blobs)} blobs, {len(blobs_in)} inside nuclei)")
+    return mask
 
 
 def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -> np.ndarray:
@@ -513,16 +560,31 @@ def main():
     cond_restored = denoise_stack(cond_stack, dn_model, "condensates")
     nuc_restored  = denoise_stack(nuc_stack,  dn_model, "nuclei")
 
-    # Segment
+    # Resolve detector: 'auto' routes JABr to blob_log, everything else to Cellpose
+    detector = args.detector
+    if detector == "auto":
+        detector = "blob_log" if args.construct == "JABr" else "cellpose"
+    print(f"    Condensate detector: {detector}")
+
+    # Segment nuclei (always Cellpose cyto3)
     print("\n[3/6] Segmenting with Cellpose 3 (do_3D=True)...")
     nuc_seg_model = models.CellposeModel(gpu=use_gpu, model_type="cyto3")
-    if args.cond_model is not None:
-        print(f"    Condensate model: {args.cond_model}")
-        cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
-    else:
-        cond_seg_model = nuc_seg_model
-    cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, args.diameter, cellprob_threshold=args.cond_cellprob)
     nuc_masks_3d  = segment_nuclei(nuc_restored,  nuc_seg_model,  args.nuc_diameter, args.nuc_cellprob)
+
+    # Segment condensates
+    if detector == "blob_log":
+        cond_masks_3d = detect_condensates_blob(
+            cond_stack, nuc_masks_3d > 0,
+            threshold=args.blob_threshold, min_sigma=args.min_sigma,
+            max_sigma=args.max_sigma, num_sigma=args.num_sigma,
+        )
+    else:
+        if args.cond_model is not None:
+            print(f"    Condensate model: {args.cond_model}")
+            cond_seg_model = models.CellposeModel(gpu=use_gpu, pretrained_model=str(args.cond_model))
+        else:
+            cond_seg_model = nuc_seg_model
+        cond_masks_3d = segment_condensates(cond_restored, cond_seg_model, args.diameter, cellprob_threshold=args.cond_cellprob)
 
     # Per-slice measurements
     print("\n[4/6] Extracting per-slice measurements...")
