@@ -14,7 +14,7 @@ Biomolecular condensates are membrane-less cellular compartments formed through 
 
 ## 2. Introduction
 
-Biomolecular condensates are membrane-less cellular compartments that play important roles in processes such as gene expression and RNA regulation. Recent work from the Franco lab has shown that artificial RNA condensates can be engineered in living cells using programmable RNA nanostar motifs, which form distinct compartments in both the nucleus and cytoplasm through sequence-specific interactions [1].
+Biomolecular condensates are membrane-less cellular compartments that play important roles in processes such as gene expression and RNA regulation [2]. Recent work from the Franco lab has shown that artificial RNA condensates can be engineered in living cells using programmable RNA nanostar motifs, which form distinct compartments in both the nucleus and cytoplasm through sequence-specific interactions [1].
 
 Fluorescence microscopy enables visualization of these condensates; however, extracting quantitative and reproducible measurements from multi-channel Z-stack imaging data remains challenging. Manual and GUI-based approaches (e.g., Imaris) are difficult to scale and lack reproducibility, particularly when analyzing large datasets or comparing results across experimental conditions.
 
@@ -32,7 +32,7 @@ The dataset comprises multi-channel confocal Z-stack images of HEK293T cells tra
 
 ### 3.2 Construct Selection
 
-The JABr construct was selected for this project on the recommendation of Shiyi Li, as it represents the reference nanostar design in Li et al. [1] and constitutes the most complete and well-characterized dataset. JABr is a three-arm RNA nanostar with 15-nucleotide (nt) arm length, kissing-loop variant A (UCGCGA), and the Broccoli fluorescent aptamer. The 15-nt arm length places the nanostar near the nuclear pore permeability threshold (approximately 5.1 nm; 66.3 kDa), causing it to form condensates in both the nucleus and the cytoplasm — a property that makes it particularly informative for studying compartment-specific enrichment [1].
+The JABr construct was selected for this project on the recommendation of Shiyi Li, as it represents the reference nanostar design in Li et al. [1] and constitutes the most complete and well-characterized dataset. JABr is a three-arm RNA nanostar with 15-nucleotide (nt) arm length, kissing-loop variant A (UCGCGA), and the Broccoli fluorescent aptamer [9]. The 15-nt arm length places the nanostar near the nuclear pore permeability threshold (approximately 5.1 nm; 66.3 kDa) [10], causing it to form condensates in both the nucleus and the cytoplasm — a property that makes it particularly informative for studying compartment-specific enrichment [1].
 
 ### 3.3 Sample and Region of Interest Selection
 
@@ -56,11 +56,11 @@ The two-channel Z-stack was split into independent single-channel stacks prior t
 
 ### 3.6 Denoising
 
-Both channels were denoised using the Cellpose 3 `DenoiseModel` [3, 4] prior to segmentation. This model is trained to suppress shot noise and background haze in fluorescence microscopy images while preserving object boundaries. Applying denoising before segmentation improves the detection of faint condensate structures and reduces spurious detections from noise peaks.
+Both channels were denoised using the Cellpose 3 `DenoiseModel` [3, 4, 8] prior to segmentation. This model is trained to suppress shot noise and background haze in fluorescence microscopy images while preserving object boundaries. Applying denoising before segmentation improves the detection of faint condensate structures and reduces spurious detections from noise peaks.
 
 ### 3.7 Segmentation
 
-Instance segmentation was performed using Cellpose 3 [3, 4] with `do_3D=True`, which processes the full volumetric Z-stack jointly rather than operating slice-by-slice. This produces spatially coherent 3D instance labels, ensuring each object is represented as a single contiguous region across all contributing Z-slices.
+Instance segmentation was performed using Cellpose 3 [3, 4, 8] with `do_3D=True`, which processes the full volumetric Z-stack jointly rather than operating slice-by-slice. This produces spatially coherent 3D instance labels, ensuring each object is represented as a single contiguous region across all contributing Z-slices.
 
 **Condensate segmentation** used the pretrained `cyto3` model with a cell probability threshold of 0.0 and GPU acceleration enabled.
 
@@ -119,15 +119,27 @@ The partition coefficient of 6.297 is within 0.4% of the manual reference value 
 
 ## 5. Discussion
 
-The pipeline achieved a partition coefficient of 6.297, within 0.4% of the manual reference of 6.324. Two design choices were central to this accuracy.
+### 5.1 Accuracy of the Partition Coefficient
 
-Background subtraction (B = minimum voxel intensity across the stack) removes the camera offset from all intensity measurements. Without this correction, both condensate and dilute densities are overestimated, but not by the same factor — the dilute phase, which has lower absolute signal, is affected proportionally more, causing the PC to be underestimated.
+The pipeline achieved a partition coefficient of 6.297, within 0.4% of the manual reference of 6.324. Three design choices were central to this result.
 
-Full 3D segmentation using `do_3D=True` produces spatially coherent instance labels across the entire Z-stack. This ensures each condensate object is represented as a single contiguous 3D region, so all contributing voxels are included in the intensity estimate.
+**Background subtraction** (B = minimum voxel intensity across the stack) removes the camera offset before any density computation. Without this correction, both densities are inflated by a constant additive term that affects the lower-intensity dilute phase disproportionately, shifting the ratio away from the true partition coefficient.
 
-The persistent ~33% offset in individual densities relative to the Imaris reference likely reflects differences in how the pipeline and Imaris define object boundaries. Despite this offset, the proportionality between condensate and dilute densities is preserved, yielding an accurate partition coefficient. Future work could investigate whether boundary definition differences can be corrected to also match individual density values.
+**Full 3D segmentation** using `do_3D=True` processes the entire volumetric Z-stack jointly, producing spatially coherent 3D instance labels. This ensures each condensate is represented as a single contiguous region across all Z-slices, so no contributing voxels are missed or double-counted in the intensity estimate.
 
-A key limitation of this work is that the pipeline was validated on a single region of interest. While this was intentional — allowing focused development against a known reference — it leaves open the question of whether the pipeline generalizes across other cells in the JABr dataset or to other nanostar constructs. Cross-validation across additional JABr regions and constructs such as GABr and AABr is a natural next step.
+**Robust dilute density estimation** via the 50 lowest-intensity 10×10×10 voxel patches follows the Fabrini et al. method [7] and deterministically selects the quietest region of the nuclear dilute phase. This mimics the researcher's manual approach of choosing a representative low-intensity spot, eliminating the seed-dependent variability of single-patch sampling.
+
+### 5.2 Density Offset
+
+Both the condensate density (440.93 vs. 658.30) and dilute density (70.03 vs. 104.09) are approximately 33% lower than the Imaris reference values. Because the underestimation is proportionally equal in numerator and denominator, the ratio — and thus the partition coefficient — is accurately recovered. This systematic offset most likely reflects differences in how the pipeline and Imaris define object boundaries: Imaris-derived masks may include a broader halo of pixels around each condensate, raising the mean intensity of the condensate phase while simultaneously including more high-intensity voxels in the dilute phase estimate. Investigating and correcting for this boundary definition difference is a direction for future work.
+
+### 5.3 Nuclei Segmentation
+
+Connected-component relabeling reduced 76 raw Cellpose output labels to 5 distinct nuclei by converting the instance mask to a binary mask and re-labeling contiguous foreground regions. This step was necessary because the condensate signal within nuclei introduces texture that causes Cellpose to fragment nuclear interiors into many small sub-regions. The relabeling restores coherent nuclear boundaries without altering pixel-level mask coverage, ensuring the dilute-phase voxel pool is correctly defined.
+
+### 5.4 Limitations
+
+The pipeline was validated on a single region of interest (JABr-Sample2_5_1). While this was intentional — allowing focused development against a known reference value — it leaves open whether the pipeline generalizes to other cells in the JABr dataset or to other nanostar constructs such as GABr and AABr. Cross-validation across additional regions and constructs is required before the pipeline can replace manual analysis in a production setting.
 
 ---
 
@@ -175,3 +187,9 @@ The full pipeline code is available at: https://github.com/Dauniel/research_lab
 [6] van der Walt, S., et al. (2014). scikit-image: Image processing in Python. *PeerJ*, 2, e453. https://doi.org/10.7717/peerj.453
 
 [7] Fabrini, E., et al. (2023). Partition coefficient formula for condensate analysis. *Manuscript in preparation*.
+
+[8] Stringer, C., & Pachitariu, M. (2025). Cellpose3: one-click image restoration for improved cellular segmentation. *Nature Methods*. https://doi.org/10.1038/s41592-025-02595-5
+
+[9] Filonov, G. S., Moon, J. D., Svensen, N., & Jaffrey, S. R. (2014). Broccoli: Rapid selection of an RNA mimic of green fluorescent protein by fluorescence-based selection and directed evolution. *Journal of the American Chemical Society*, 136(46), 16299–16308. https://doi.org/10.1021/ja508478x
+
+[10] Timney, B. L., Raveh, B., Mironska, R., Trivedi, J. M., Kim, S. J., Russel, D., Wente, S. R., Sali, A., & Rout, M. P. (2016). Simple rules for passive diffusion through the nuclear pore complex. *Journal of Cell Biology*, 215(1), 57–76. https://doi.org/10.1083/jcb.201601004
