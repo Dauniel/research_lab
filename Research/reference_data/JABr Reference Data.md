@@ -192,11 +192,12 @@ Per-ROI 6-panel figures (max-intensity Z-projection): merged reference (nuc=cyan
 
 ![[jabr_panels/Sample2_5_5.png]]
 
-### Sample2_5_6  —  ref PC = 12.15  |  calibrated = 8.98  |  err = 26.1%
+### Sample2_5_6  —  ref PC = 12.15  |  calibrated = 8.98  |  err = 26.1% okay
 
 ![[jabr_panels/Sample2_5_6.png]]
 
 ### Sample3_3_1  —  ref PC = 8.18  |  calibrated = 8.39  |  err = 2.5%
+check why the 3rd condensate was not captured
 
 ![[jabr_panels/Sample3_3_1.png]]
 
