@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from skimage.measure import regionprops_table, label
 from skimage.feature import blob_log
+from scipy.ndimage import binary_fill_holes
 
 import torch
 from cellpose import models, core, denoise
@@ -316,7 +317,20 @@ def segment_nuclei(stack: np.ndarray, seg_model, diameter, cellprob_threshold) -
             new_lbl += 1
             clean[connected == lbl] = new_lbl
     print(f"    nuclei after connected-component relabeling: {clean.max()}")
-    return clean
+
+    # Fill interior voids per nucleus. Condensates exclude the nuclear stain, so
+    # Cellpose carves donut holes around them; those holes sit exactly where
+    # nuclear condensates are. Filling per-label (3D + per-slice 2D for z-open
+    # tunnels) makes condensates in those voids count as intra-nuclear in the PC.
+    filled = np.zeros_like(clean)
+    for lbl in range(1, clean.max() + 1):
+        m = binary_fill_holes(clean == lbl)
+        for z in range(m.shape[0]):
+            m[z] = binary_fill_holes(m[z])
+        filled[m] = lbl
+    n_added = int((filled > 0).sum() - (clean > 0).sum())
+    print(f"    nuclei after void-filling: +{n_added} voxels")
+    return filled
 
 
 # ── Step 4: Per-slice measurements ───────────────────────────────────────────

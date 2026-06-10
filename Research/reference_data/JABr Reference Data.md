@@ -83,45 +83,47 @@ See also: [[JABr Experiments]]
 
 ## Pipeline — Nuclear (blob_log, current production)
 
-Detector: `blob_log` threshold=0.03, min_sigma=1.5, max_sigma=6.0, num_sigma=8. Nuclei via Cellpose `cyto3` + connected-component relabel. Calibration: linear `0.3541 * raw_pc + 2.9867` (full-data fit on JABr; LOO-CV MAE 14.7%). Source CSV: `spring_implementation/outputs/blob_JABr_thresh03/comparison.csv`. n=28 (Sample3_3_10 and Sample3_3_15 are in the reference but were skipped by the run — likely no transfected cell / segmentation failure).
+Detector: `blob_log` threshold=0.03, min_sigma=1.5, max_sigma=6.0, num_sigma=8. Nuclei via Cellpose `cyto3` + connected-component relabel **+ per-nucleus void-filling** (`binary_fill_holes`, 3D + per-slice 2D) so condensates sitting in the donut holes Cellpose carves around them count as intra-nuclear. Calibration: linear `0.3540 * raw_pc + 2.9816` (full-data fit on JABr; LOO-CV MAE 14.6%). Source CSV: `spring_implementation/outputs/blob_JABr_filled/comparison.csv`. n=28 (Sample3_3_10 and Sample3_3_15 are in the reference but were skipped by the run — likely no transfected cell / segmentation failure).
+
+Void-filling is PC-neutral vs the pre-fill production run (`blob_JABr_thresh03`): r, MAE, and within-±20% are unchanged; the largest single-ROI PC change is +0.95 (Sample3_3_5) and most move <0.2, both directions. Most condensate centroids already fell inside the nucleus mask even with the holes, so filling mainly makes the masks solid for review without distorting the metric.
 
 | File         | Pipeline Cond Density | Pipeline Dilute Density | Background | Raw PC | Calibrated PC | Ref PC | \|err\|% |
 | ------------ | --------------------- | ----------------------- | ---------- | ------ | ------------- | ------ | -------- |
-| Sample1_1_1  | 588.52                | 56.63                   | 89.0       | 10.39  | 6.67          | 4.780  | 39.4%    |
-| Sample1_1_2  | 1152.43               | 64.67                   | 93.0       | 17.82  | 9.30          | 9.038  | 2.9%     |
-| Sample1_1_3  | 2168.32               | 47.89                   | 99.0       | 45.28  | 19.02         | 19.774 | 3.8%     |
-| Sample1_1_4  | 1370.80               | 54.25                   | 92.0       | 25.27  | 11.93         | 10.584 | 12.8%    |
-| Sample1_2_1  | 632.42                | 55.47                   | 92.0       | 11.40  | 7.02          | 8.023  | 12.5%    |
-| Sample1_2_2  | 350.67                | 63.13                   | 87.0       | 5.55   | 4.95          | 4.599  | 7.7%     |
-| Sample1_2_3  | 162.46                | 53.22                   | 95.0       | 3.05   | 4.07          | 2.545  | 59.8%    |
-| Sample1_4_1  | 573.61                | 54.81                   | 92.0       | 10.47  | 6.69          | 6.129  | 9.2%     |
-| Sample1_4_2  | 364.90                | 65.57                   | 87.0       | 5.57   | 4.96          | 5.049  | 1.8%     |
-| Sample1_4_3  | 1765.67               | 58.10                   | 88.0       | 30.39  | 13.75         | 13.963 | 1.5%     |
-| Sample1_4_4  | 957.10                | 49.87                   | 91.0       | 19.19  | 9.78          | 9.322  | 4.9%     |
-| Sample2_5_1  | 606.25                | 70.11                   | 76.0       | 8.65   | 6.05          | 6.324  | 4.4%     |
-| Sample2_5_2  | 544.39                | 63.33                   | 84.0       | 8.60   | 6.03          | 6.873  | 12.3%    |
-| Sample2_5_3  | 317.62                | 71.41                   | 79.0       | 4.45   | 4.56          | 4.558  | 0.1%     |
-| Sample2_5_4  | 408.12                | 60.11                   | 86.0       | 6.79   | 5.39          | 6.020  | 10.4%    |
-| Sample2_5_5  | 1260.20               | 58.53                   | 84.0       | 21.53  | 10.61         | 6.728  | 57.7%    |
-| Sample2_5_6  | 1082.97               | 64.02                   | 82.0       | 16.92  | 8.98          | 12.151 | 26.1%    |
-| Sample3_3_1  | 843.02                | 55.28                   | 88.0       | 15.25  | 8.39          | 8.185  | 2.5%     |
-| Sample3_3_2  | 689.68                | 63.35                   | 89.0       | 10.89  | 6.84          | 9.045  | 24.4%    |
-| Sample3_3_3  | 1365.21               | 59.18                   | 88.0       | 23.07  | 11.16         | 8.825  | 26.4%    |
-| Sample3_3_4  | 447.92                | 55.83                   | 89.0       | 8.02   | 5.83          | 6.599  | 11.7%    |
-| Sample3_3_5  | 826.29                | 53.34                   | 86.0       | 15.49  | 8.47          | 8.413  | 0.7%     |
-| Sample3_3_6  | 1610.49               | 58.19                   | 88.0       | 27.68  | 12.79         | 12.689 | 0.8%     |
-| Sample3_3_7  | 1019.07               | 56.81                   | 89.0       | 17.94  | 9.34          | 8.681  | 7.6%     |
-| Sample3_3_8  | 803.08                | 59.32                   | 87.0       | 13.54  | 7.78          | 8.295  | 6.2%     |
-| Sample3_3_9  | 492.43                | 49.65                   | 90.0       | 9.92   | 6.50          | 5.920  | 9.8%     |
-| Sample3_3_11 | 2109.39               | 55.99                   | 84.0       | 37.68  | 16.33         | 16.951 | 3.7%     |
-| Sample3_3_14 | 1149.57               | 59.18                   | 85.0       | 19.42  | 9.86          | 12.969 | 23.9%    |
+| Sample1_1_1  | 588.5                 | 56.6                    | 89         | 10.39  | 6.66          | 4.78   | 39.3%    |
+| Sample1_1_2  | 1151.2                | 64.7                    | 93         | 17.80  | 9.28          | 9.04   | 2.7%     |
+| Sample1_1_3  | 2168.3                | 47.9                    | 99         | 45.28  | 19.01         | 19.77  | 3.9%     |
+| Sample1_1_4  | 1369.7                | 53.8                    | 92         | 25.45  | 11.99         | 10.58  | 13.3%    |
+| Sample1_2_1  | 632.2                 | 55.5                    | 92         | 11.40  | 7.02          | 8.02   | 12.6%    |
+| Sample1_2_2  | 350.7                 | 63.1                    | 87         | 5.55   | 4.95          | 4.60   | 7.6%     |
+| Sample1_2_3  | 162.1                 | 53.2                    | 95         | 3.05   | 4.06          | 2.55   | 59.5%    |
+| Sample1_4_1  | 573.6                 | 54.8                    | 92         | 10.47  | 6.69          | 6.13   | 9.1%     |
+| Sample1_4_2  | 364.0                 | 65.6                    | 87         | 5.55   | 4.95          | 5.05   | 2.0%     |
+| Sample1_4_3  | 1765.7                | 58.1                    | 88         | 30.39  | 13.74         | 13.96  | 1.6%     |
+| Sample1_4_4  | 957.1                 | 49.9                    | 91         | 19.19  | 9.78          | 9.32   | 4.9%     |
+| Sample2_5_1  | 606.5                 | 70.1                    | 76         | 8.65   | 6.04          | 6.32   | 4.4%     |
+| Sample2_5_2  | 544.3                 | 63.3                    | 84         | 8.60   | 6.02          | 6.87   | 12.4%    |
+| Sample2_5_3  | 319.5                 | 71.4                    | 79         | 4.47   | 4.57          | 4.56   | 0.2%     |
+| Sample2_5_4  | 414.2                 | 60.1                    | 86         | 6.89   | 5.42          | 6.02   | 10.0%    |
+| Sample2_5_5  | 1260.0                | 58.5                    | 84         | 21.53  | 10.60         | 6.73   | 57.6%    |
+| Sample2_5_6  | 1083.0                | 64.0                    | 82         | 16.92  | 8.97          | 12.15  | 26.2%    |
+| Sample3_3_1  | 797.3                 | 54.9                    | 88         | 14.53  | 8.12          | 8.18   | 0.7%     |
+| Sample3_3_11 | 2109.4                | 56.0                    | 84         | 37.68  | 16.32         | 16.95  | 3.7%     |
+| Sample3_3_14 | 1149.6                | 59.2                    | 85         | 19.42  | 9.86          | 12.97  | 24.0%    |
+| Sample3_3_2  | 689.3                 | 63.4                    | 89         | 10.88  | 6.83          | 9.05   | 24.5%    |
+| Sample3_3_3  | 1361.7                | 59.2                    | 88         | 23.01  | 11.13         | 8.82   | 26.1%    |
+| Sample3_3_4  | 453.8                 | 55.8                    | 89         | 8.13   | 5.86          | 6.60   | 11.2%    |
+| Sample3_3_5  | 876.9                 | 53.3                    | 86         | 16.44  | 8.80          | 8.41   | 4.6%     |
+| Sample3_3_6  | 1610.5                | 58.2                    | 88         | 27.68  | 12.78         | 12.69  | 0.7%     |
+| Sample3_3_7  | 1018.8                | 56.8                    | 89         | 17.93  | 9.33          | 8.68   | 7.5%     |
+| Sample3_3_8  | 814.6                 | 59.3                    | 87         | 13.73  | 7.84          | 8.29   | 5.4%     |
+| Sample3_3_9  | 482.8                 | 49.6                    | 90         | 9.73   | 6.42          | 5.92   | 8.5%     |
 
-**Summary:** n=28, mean \|err\| = 13.7%, 21/28 within ±20%, Pearson r ≈ 0.93.
+**Summary:** n=28, mean \|err\| = 13.7%, 21/28 within ±20%, Pearson r = 0.926.
 
 **Notable failures (>30% error):**
 - Sample1_1_1 (+39%): pipeline dilute (56.6) < background (89) → bad nucleus mask drifting into dim region. Both blob_log and Cellpose V3 fail here.
-- Sample1_2_3 (+60%): smallest ref PC (2.55) → calibration intercept dominates. Linear cal floor at intercept=2.99 makes %-error large even though absolute error is only 1.5 PC units.
-- Sample2_5_5 (+58%): pipeline dilute (58.5) < background (84) **and** blob_log cond density inflated to 1260 vs ref 497 (Cellpose V3 gives 633 here — V3 is closer for this ROI specifically).
+- Sample1_2_3 (+60%): smallest ref PC (2.55) → calibration intercept dominates. Linear cal floor at intercept=2.98 makes %-error large even though absolute error is only 1.5 PC units.
+- Sample2_5_5 (+58%): pipeline dilute (58.5) < background (84) **and** blob_log cond density inflated to 1260 vs ref 497 (Cellpose V3 gives 633 here — V3 is closer for this ROI specifically). Void-filling does not change this ROI's cond density.
 
 The dilute < background pattern is a nucleus-mask quality issue, not a detector issue. See [[JABr Experiments#Bad Cases]] for full failure-mode notes.
 ## Visual Panels
